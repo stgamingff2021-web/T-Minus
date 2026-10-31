@@ -9,7 +9,7 @@ export default function Public() {
     <div className="page" style={{ maxWidth: 900 }}>
       <div className="hero"><h1><Megaphone size={20} /> Public alerts</h1></div>
       <div className="banner warn" style={{ marginBottom: 14 }}>
-        PROTOTYPE EXERCISE — these are officer-approved T-Minus outputs (CAP status = Exercise). T-Minus is not an official warning source: follow IMD, NDMA and your district administration.
+        Exercise · not an official warning. Follow IMD and your district administration.
       </div>
       {loading && <Loading label="Loading approved alerts…" />}
       <ErrorBox error={error} what="public alerts" />

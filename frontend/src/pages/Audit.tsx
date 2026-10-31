@@ -12,7 +12,6 @@ export default function Audit() {
       <div className="hero">
         <div>
           <h1><ScrollText size={20} /> Audit log</h1>
-          <div className="small muted">Append-only: who, what, when, text before and after. The database blocks updates and deletes on this table.</div>
         </div>
       </div>
       {!user && <div className="banner info">Officer login required.</div>}

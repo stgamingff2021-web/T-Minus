@@ -296,11 +296,10 @@ async def node_gather(state: AgentState, config) -> dict:
     ctx.emit("step", {"node": "GATHER", "status": "start"})
     hints = plan_query_hints(state["hazard"], None if state["level"] == "QUIET" else state["level"])
     if ctx.llm is None:
-        ctx.emit("error", {"node": "GATHER", "message": "LLM unavailable (no API key configured): running retrieval-only "
-                                                         "mode — relevant plan sections are shown, no AI plan is drafted."})
+        ctx.emit("error", {"node": "GATHER", "message": "AI planner unavailable: showing the relevant plan sections."})
         await _deterministic_gather(ctx, hints)
         ctx.emit("step", {"node": "GATHER", "status": "done", "ms": int((time.perf_counter() - t0) * 1000), "mode": "retrieval-only"})
-        return {"status": "unavailable", "gather_note": "Planner temporarily unavailable (no LLM configured)."}
+        return {"status": "unavailable", "gather_note": "AI planner unavailable"}
 
     user = (f"<evidence>\n{json.dumps({'district': state['district_name'], 'hazard': state['hazard'], 'level': state['level'], 'assessment': state.get('assessment'), 'official_alerts': (state.get('official_alerts') or {}).get('alerts')}, ensure_ascii=False, default=str)}\n</evidence>\n\n"
             f"Suggested topics for this level (adapt as needed): {', '.join(hints)}.\n"

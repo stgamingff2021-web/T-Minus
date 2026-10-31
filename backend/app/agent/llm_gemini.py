@@ -209,8 +209,8 @@ class GeminiLLM:
             if r.status_code == 400 and "thinking" in msg.lower() and "thinkingLevel" in json.dumps(body):
                 body["generationConfig"]["thinkingConfig"].pop("thinkingLevel", None)  # model without levels
                 continue
-            label = {400: "bad request", 401: "authentication failed — check GEMINI_API_KEY",
-                     403: "permission denied — check GEMINI_API_KEY", 404: "model not found"}.get(r.status_code,
+            label = {400: "bad request", 401: "authentication failed",
+                     403: "permission denied", 404: "model not found"}.get(r.status_code,
                                                                                                f"HTTP {r.status_code}")
             self._fail(label, t0)
             raise LLMUnavailable(f"{self.model}: {label}: {msg}")

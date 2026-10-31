@@ -3,6 +3,7 @@ import { Check, FileText, Pencil, RotateCcw, X } from "lucide-react";
 import { api } from "../lib/api";
 import { useApp } from "../lib/app";
 import { useApi } from "../lib/hooks";
+import { ReadinessChips } from "./Readiness";
 import { ConfirmDialog, Modal, SourceBadge } from "./ui";
 
 const PHASES = ["Do now", "T-48h", "T-24h", "T-6h"] as const;
@@ -42,12 +43,14 @@ export function CitationModal({ cite, onClose }: { cite: any; onClose: () => voi
           <Highlight text={chunk.text} quote={cite.quote} />
         </div>
       )}
-      <div className="tiny muted">The highlighted span is the verbatim quote; VERIFY checked it is an exact substring of this page's text before the plan reached you.</div>
     </Modal>
   );
 }
 
-function ActionCard({ a, onChange, canAct }: { a: any; onChange: (x: any) => void; canAct: boolean }) {
+type Extra = { readiness?: Record<string, any>; tasks?: Record<string, any>; onReadinessChange?: () => void };
+const TASK_LABEL: Record<string, string> = { pending: "Pending", in_progress: "In progress", completed: "Completed", blocked: "Blocked" };
+
+function ActionCard({ a, onChange, canAct, readiness, tasks, onReadinessChange }: { a: any; onChange: (x: any) => void; canAct: boolean } & Extra) {
   const { requireLogin, toast, t } = useApp();
   const [cite, setCite] = useState<any>(null);
   const [editing, setEditing] = useState(false);
@@ -74,6 +77,8 @@ function ActionCard({ a, onChange, canAct }: { a: any; onChange: (x: any) => voi
         <span className="mono tiny faint">{a.key}</span>
         <SourceBadge source={a.source} />
         {a.status !== "proposed" && <span className={`pill ${a.status === "approved" ? "ok" : a.status === "rejected" ? "danger" : "info"}`}>{a.status}</span>}
+        {tasks?.[a.id] && <span className={`pill ${tasks[a.id].status === "blocked" || tasks[a.id].overdue ? "danger" : tasks[a.id].status === "completed" ? "ok" : ""}`}>
+          {TASK_LABEL[tasks[a.id].status]}{tasks[a.id].overdue ? " · overdue" : ""}</span>}
       </div>
       {editing ? (
         <>
@@ -86,7 +91,7 @@ function ActionCard({ a, onChange, canAct }: { a: any; onChange: (x: any) => voi
       ) : (
         <div className="atext">{a.edited_text || a.action}{a.edited_text && <div className="tiny faint" style={{ textDecoration: "line-through" }}>{a.action}</div>}</div>
       )}
-      <div className="resp">{a.responsible ? <>👤 {a.responsible}</> : <span className="faint">Responsibility not stated in plan</span>}</div>
+      <div className="resp">{a.responsible ? <>👤 {a.responsible}</> : <span className="faint">No owner in plan</span>}</div>
       {a.citations?.length > 0 && (
         <div className="row wrap" style={{ gap: 4 }}>
           {a.citations.map((c: any, i: number) => (
@@ -98,6 +103,7 @@ function ActionCard({ a, onChange, canAct }: { a: any; onChange: (x: any) => voi
       )}
       {a.rationale && <div className="tiny muted">{a.rationale}</div>}
       {a.problems?.length > 0 && <div className="tiny" style={{ color: "var(--act)" }}>⚠ {a.problems.join(" · ")}</div>}
+      <ReadinessChips checks={readiness?.[a.id]?.checks} onChange={onReadinessChange} />
       {a.location_refs?.length > 0 && <div className="tiny faint">📍 {a.location_refs.join(", ")}</div>}
       {canAct && !editing && (
         <div className="row" style={{ gap: 4 }}>
@@ -112,14 +118,13 @@ function ActionCard({ a, onChange, canAct }: { a: any; onChange: (x: any) => voi
         <ConfirmDialog title={confirm === "approve" ? "Approve this action?" : "Reject this action?"} confirmLabel={confirm === "approve" ? "Approve" : "Reject"}
           danger={confirm === "reject"} busy={busy} onCancel={() => setConfirm(null)} onConfirm={() => send(confirm, { confirm: true })}>
           <div className="card tight" style={{ background: "var(--panel2)" }}>{a.edited_text || a.action}</div>
-          <div className="small muted">Your decision is written to the append-only audit log with your name and the time.</div>
         </ConfirmDialog>
       )}
     </div>
   );
 }
 
-export function ActionTimeline({ actions, tMinus, onUpdate, canAct }: { actions: any[]; tMinus?: number | null; onUpdate: (a: any) => void; canAct: boolean }) {
+export function ActionTimeline({ actions, tMinus, onUpdate, canAct, ...extra }: { actions: any[]; tMinus?: number | null; onUpdate: (a: any) => void; canAct: boolean } & Extra) {
   return (
     <div className="timeline">
       {PHASES.map((ph) => {
@@ -131,8 +136,8 @@ export function ActionTimeline({ actions, tMinus, onUpdate, canAct }: { actions:
               <span>{ph === "Do now" ? "▶ DO NOW" : ph}</span>
               <span className="tiny faint">{passed ? "passed → Do now" : `${items.length}`}</span>
             </div>
-            {items.map((a) => <ActionCard key={a.id} a={a} onChange={onUpdate} canAct={canAct} />)}
-            {!items.length && <div className="tiny faint center" style={{ padding: 10 }}>{passed ? "This phase has passed; its work is in Do now." : "No actions"}</div>}
+            {items.map((a) => <ActionCard key={a.id} a={a} onChange={onUpdate} canAct={canAct} {...extra} />)}
+            {!items.length && <div className="tiny faint center" style={{ padding: 10 }}>{passed ? "Passed" : "No actions"}</div>}
           </div>
         );
       })}

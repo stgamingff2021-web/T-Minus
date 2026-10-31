@@ -36,7 +36,7 @@ export default function Plans() {
     setBusy(true);
     try {
       const r = await api("/api/plans", { method: "POST", body: fd });
-      toast({ kind: "ok", title: r.duplicate ? "Already ingested (same SHA-256)" : `Ingested ${r.pages} pages → ${r.chunks} chunks`, body: r.ocr_pages?.length ? `OCR on pages ${r.ocr_pages.join(", ")}` : `Vectors: ${r.embedding_backend}` });
+      toast({ kind: "ok", title: r.duplicate ? "Already ingested (same SHA-256)" : `Ingested ${r.pages} pages → ${r.chunks} chunks`, body: r.ocr_pages?.length ? `OCR on pages ${r.ocr_pages.join(", ")}` : undefined });
       setFile(null);
       reload();
     } catch (e) {
@@ -63,13 +63,12 @@ export default function Plans() {
     <div className="page">
       <div className="hero">
         <div>
-          <h1><BookOpenText size={20} /> District plans — the agent's knowledge base</h1>
-          <div className="small muted">Official District Disaster Management Plans (TNSDMA), city plans and NDMA guidelines. Every chunk keeps its title, edition, source URL, SHA-256, page and section — the agent can only cite text that is stored here verbatim.</div>
+          <h1><BookOpenText size={20} /> Plans</h1>
         </div>
       </div>
       <div className="grid two" style={{ marginBottom: 14 }}>
         <div className="card">
-          <div className="section-title"><Upload size={12} /> Ingest an official PDF</div>
+          <div className="section-title"><Upload size={12} /> Add a plan (PDF)</div>
           <div className="col">
             <input type="file" accept="application/pdf,.pdf" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
             <div className="grid two">
@@ -82,18 +81,18 @@ export default function Plans() {
               <label className="field">Edition year<input className="input" value={year} onChange={(e) => setYear(e.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="2024" /></label>
             </div>
             <button className="btn primary" onClick={upload} disabled={busy}>{busy ? <Loader2 size={14} className="spin" /> : <Upload size={14} />} Ingest</button>
-            <div className="tiny muted">PDF only · max 30 MB · encrypted PDFs rejected · pages without a text layer are OCR'd (Tesseract) and flagged.</div>
+            <div className="tiny muted">PDF · max 30 MB</div>
           </div>
         </div>
         <div className="card">
-          <div className="section-title"><MessageSquareQuote size={12} /> Ask the plan (answers only from the plan, with citations)</div>
+          <div className="section-title"><MessageSquareQuote size={12} /> Ask the plan</div>
           <div className="col">
             <label className="field">District<select value={qDistrict} onChange={(e) => setQDistrict(e.target.value)}>{dlist.map((d: any) => <option key={d.id} value={d.id}>{d.name}</option>)}</select></label>
             <label className="field">Question<input className="input" value={question} maxLength={500} onChange={(e) => setQuestion(e.target.value)} onKeyDown={(e) => e.key === "Enter" && question.trim() && ask()} placeholder="Which department deploys dewatering pumps?" /></label>
             <button className="btn" onClick={ask} disabled={asking || question.trim().length < 4}>{asking && <Loader2 size={14} className="spin" />} Ask</button>
             {answer && (
               <div className="card tight" style={{ background: "var(--panel2)" }}>
-                {answer.llm_unavailable ? <div className="small muted">LLM unavailable — the most relevant plan passages are listed instead:</div> : <div>{answer.answer}</div>}
+                {answer.llm_unavailable ? <div className="small muted">Most relevant passages:</div> : <div>{answer.answer}</div>}
                 {(answer.citations || []).map((c: any, i: number) => (
                   <div key={i} className="small" style={{ marginTop: 6 }}>
                     <span className={`pill ${c.verified ? "ok" : "danger"}`}>{c.verified ? "verbatim ✓" : "unverified"}</span> “{c.quote}” — {c.document_title}, p. {c.page}
@@ -118,15 +117,15 @@ export default function Plans() {
                 <td>{d.kind === "generic" ? <span className="pill info">NDMA generic</span> : <>{d.district_id} <span className="pill">{d.kind}</span></>}</td>
                 <td className="mono">{d.pages} / {d.chunks}</td>
                 <td className="mono tiny">{d.sha256.slice(0, 16)}…</td>
-                <td className="tiny">{istTime(d.ingested_at, true)}<div className="muted">{d.ingested_by} · {d.embedding_backend}</div></td>
+                <td className="tiny">{istTime(d.ingested_at, true)}<div className="muted">{d.ingested_by}</div></td>
                 <td className="tiny">{d.ocr_pages?.length ? `${d.ocr_pages.length} pages${d.low_confidence_pages?.length ? `, review p. ${d.low_confidence_pages.join(", ")}` : ""}` : "—"}</td>
               </tr>
             ))}
           </tbody>
         </table>
-        {data && !data.documents.length && <div className="empty small">No plans ingested yet. Download the official DDMP PDF from TNSDMA and ingest it here (or run <span className="mono">python -m scripts.ingest_plans</span>).</div>}
+        {data && !data.documents.length && <div className="empty small">No plans yet</div>}
         <div className="divider" />
-        <div className="section-title">Configured official sources (config/plans.yaml)</div>
+        <div className="section-title">Official sources</div>
         <ul className="small">
           {(data?.configured_sources || []).map((p: any) => <li key={p.key}>{p.title} — {p.source_url ? <a href={p.source_url}>{p.source_url}</a> : <>PDF link to be copied from <a href={p.landing_page} target="_blank" rel="noreferrer">{p.landing_page}</a></>}</li>)}
         </ul>

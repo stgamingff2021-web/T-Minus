@@ -36,17 +36,13 @@ export default function Replay() {
   return (
     <div className="page full" style={{ height: "auto" }}>
       <div className="banner replay" style={{ borderRadius: 0 }}>
-        <History size={16} /> REPLAY · real forecasts as issued at the time · never writes to live triggers
+        <History size={16} /> REPLAY · forecasts as issued at the time
       </div>
       <div className="page">
         <div className="hero">
           <div>
-            <h1>Replay mode — backtesting without look-ahead</h1>
-            <div className="small muted" style={{ maxWidth: 900 }}>
-              At each replay clock time T we use only forecasts that were issued at or before T (Open-Meteo Previous Runs API: for a valid hour v, the
-              <span className="mono"> previous_dayN </span> series with N = ⌈(v − T)/24 h⌉). The Historical Forecast API is never used — it stitches together the first hours of each run and would leak the future.
-              Archived ensemble members do not exist for these events, so the probability is <b>multi-model agreement</b> (share of archived global models crossing the threshold) — labelled as such, not the live 51-member probability.
-            </div>
+            <h1>Replay</h1>
+            <div className="small muted">Multi-model agreement · no look-ahead</div>
           </div>
         </div>
         <ErrorBox error={ev.error} what="replay events" />
@@ -63,8 +59,8 @@ export default function Replay() {
             </div>
           ))}
         </div>
-        {replayId && rp.data?.status === "running" && <Loading label="Fetching as-issued forecasts for every model and replaying the clock…" />}
-        {rp.data?.status === "failed" && <div className="banner danger">Replay failed: {rp.data.error} — no values are shown when the archive cannot be fetched.</div>}
+        {replayId && rp.data?.status === "running" && <Loading label="Replaying…" />}
+        {rp.data?.status === "failed" && <div className="banner danger">Replay failed: {rp.data.error}</div>}
         {res && (
           <>
             <div className="grid four" style={{ marginBottom: 14 }}>
@@ -83,18 +79,18 @@ export default function Replay() {
               </div>
             </div>
             <div className="card" style={{ marginBottom: 14 }}>
-              <div className="section-title">{res.event.name} · {res.district.name} — agreement through time vs observed rainfall</div>
+              <div className="section-title">{res.event.name} · {res.district.name}</div>
               <ReplayChart result={res} />
-              {res.observed.error && <div className="banner warn small" style={{ marginTop: 6 }}>Ground truth unavailable: {res.observed.error}. Fire times are shown; lead times need the observed peak and are not estimated.</div>}
+              {res.observed.error && <div className="banner warn small" style={{ marginTop: 6 }}>Observed rainfall unavailable: {res.observed.error}</div>}
               <div className="small muted" style={{ marginTop: 6 }}>
                 Observed peak 24-h rainfall: <b>{res.observed.peak_mm ?? "—"} mm</b> ending {istFromUnix(res.observed.peak_time)} (reanalysis archive). Models used: {res.models_used.join(", ")}.
                 {res.models_skipped.length > 0 && <> Skipped: {res.models_skipped.map((m: any) => `${m.model} (${m.reason})`).join("; ")}.</>}
               </div>
             </div>
             <div className="card">
-              <div className="section-title">Quiet period check (same length, false-alarm test)</div>
+              <div className="section-title">Quiet period (false alarms)</div>
               <ReplayChart result={{ ...res.quiet_period, timeline: res.quiet_period.timeline, observed: res.quiet_period.observed }} />
-              <div className="small muted">Observed peak in the quiet period: {res.quiet_period.observed.peak_mm ?? "—"} mm/24 h {res.quiet_period.observed_exceeded_very_heavy ? "(the quiet period actually had very heavy rain — pick another)" : ""}</div>
+              <div className="small muted">Observed peak in the quiet period: {res.quiet_period.observed.peak_mm ?? "—"} mm/24 h {res.quiet_period.observed_exceeded_very_heavy ? "(not quiet: very heavy rain observed)" : ""}</div>
             </div>
           </>
         )}

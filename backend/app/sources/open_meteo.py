@@ -177,12 +177,12 @@ async def fetch_ensemble(
 
 
 async def fetch_ensemble_multi(points: list[tuple[float, float]], model: str, variables: list[str],
-                               forecast_days: int = 7) -> tuple[FetchResult, list[dict[str, EnsemblePoint]]]:
+                               forecast_days: int = 7, source: str | None = None) -> tuple[FetchResult, list[dict[str, EnsemblePoint]]]:
     """Several per-member variables at once (used by the WBGT heat plug-in)."""
     s = get_settings()
     params = _key({**_coords(points), "hourly": ",".join(variables), "models": model,
                    "forecast_days": forecast_days, "timezone": "GMT", "timeformat": "unixtime"})
-    res = await fetch(f"ensemble:{model}", s.open_meteo_ensemble_url, params=params,
+    res = await fetch(source or f"ensemble:{model}", s.open_meteo_ensemble_url, params=params,
                       validate=lambda p: [validate_hourly(p, v, len(points)) for v in variables] and None,
                       log_params={k: v for k, v in params.items() if k != "apikey"})
     out = []

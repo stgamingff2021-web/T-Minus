@@ -41,8 +41,8 @@ async def route(origin: tuple[float, float], destination: tuple[float, float],
     """origin/destination are (lat, lon). Returns (fetch, {geometry, distance_m, duration_s})."""
     s = get_settings()
     if not s.ors_api_key:
-        registry.set_disabled("ors", "ORS_API_KEY not set")
-        raise SourceError("ors", "Routing unavailable: ORS_API_KEY is not configured", code="not_configured",
+        registry.set_disabled("ors", "Not configured")
+        raise SourceError("ors", "Routing not configured", code="not_configured",
                           retryable=False)
     body: dict[str, Any] = {
         "coordinates": [[origin[1], origin[0]], [destination[1], destination[0]]],

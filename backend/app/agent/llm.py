@@ -127,7 +127,7 @@ class AnthropicLLM:
             resp = await self._client.beta.messages.create(**kwargs)
         except a.AuthenticationError as exc:
             self._fail("authentication failed", t0)
-            raise LLMUnavailable(f"{self.model}: authentication failed — check ANTHROPIC_API_KEY") from exc
+            raise LLMUnavailable(f"{self.model}: authentication failed") from exc
         except a.PermissionDeniedError as exc:
             self._fail("permission denied", t0)
             raise LLMUnavailable(f"{self.model}: permission denied") from exc
@@ -235,8 +235,8 @@ def get_llm() -> FailoverLLM | None:
     s = get_settings()
     order = _provider_order()
     if not order:
-        registry.set_disabled("llm:primary", "No LLM key set (ANTHROPIC_API_KEY or GEMINI_API_KEY)")
-        registry.set_disabled("llm:backup", "No LLM key set (ANTHROPIC_API_KEY or GEMINI_API_KEY)")
+        registry.set_disabled("llm:primary", "Not configured")
+        registry.set_disabled("llm:backup", "Not configured")
         return None
 
     def make(provider: str, model: str, key: str):

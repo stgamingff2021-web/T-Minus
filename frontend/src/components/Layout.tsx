@@ -1,6 +1,6 @@
 import { ReactNode, useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
-import { Activity, BookOpenText, History, Languages, LogIn, LogOut, Map, Megaphone, Moon, Radio, ScrollText, Sun } from "lucide-react";
+import { Activity, BookOpenText, History, Languages, ListChecks, LogIn, LogOut, Map, Megaphone, Moon, Radio, ScrollText, Sun } from "lucide-react";
 import { useApp } from "../lib/app";
 import { useApi } from "../lib/hooks";
 import { ago, istTime } from "../lib/format";
@@ -17,7 +17,7 @@ function SourcesPill() {
   const label = bad ? `${bad} failed` : sim ? `${sim} simulated outage` : stale ? `${stale} stale` : relevant.length ? "all live" : "no fetches yet";
   return (
     <NavLink to="/sources" className={`pill ${cls}`} title="Sources panel">
-      <Radio size={12} /> Sources: {label}
+      <Radio size={12} /> {label}
     </NavLink>
   );
 }
@@ -55,11 +55,11 @@ export function Layout({ children }: { children: ReactNode }) {
           </span>
           <span>
             <span className="word">T<b>–</b>MINUS</span>
-            <span className="tag">forecasts → action, before impact</span>
           </span>
         </NavLink>
         <nav className="nav">
           <NavLink to="/" end><Map size={14} /> <span className="lbl">{t("map")}</span></NavLink>
+          <NavLink to="/tracker"><ListChecks size={14} /> <span className="lbl">{t("tracker")}</span></NavLink>
           <NavLink to="/sources"><Radio size={14} /> <span className="lbl">{t("sources")}</span></NavLink>
           <NavLink to="/replay"><History size={14} /> <span className="lbl">{t("replay")}</span></NavLink>
           <NavLink to="/plans"><BookOpenText size={14} /> <span className="lbl">{t("plans")}</span></NavLink>
@@ -87,7 +87,7 @@ export function Layout({ children }: { children: ReactNode }) {
       </header>
       <main style={{ minHeight: 0 }}>{children}</main>
       <footer className="footer">
-        <span><b>Prototype decision-support tool</b> — not an official warning source. Nothing is sent without officer approval.</span>
+        <span><b>Exercise</b> · not an official warning</span>
         <span>Weather data: Open-Meteo (CC BY 4.0)</span>
         <span>Flood: GloFAS v4 via Open-Meteo</span>
         <span>© OpenStreetMap contributors</span>

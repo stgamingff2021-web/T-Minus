@@ -15,6 +15,10 @@ Numbers are what the live sources reported at that time; they will differ on any
 | `07-gemini-agent-plan-chennai-live.png` | **Full agent run on a real LLM** (Gemini, served by gemini-3.6-flash) against the 805-page GCC plan: 13 tool calls; VERIFY rejected attempt 1 ("A6: location … not in the plan text") and attempt 2 passed — 9 actions, 9 verbatim citations (pp. 24–718), countdown-phased, each with Approve / Edit / Reject. (The attempt-1 rejection exposed a whitespace bug in the verifier's name check, since fixed with a regression test.) |
 | `08-gemini-agent-plan-puducherry-live.png` | Agent run for Puducherry against the real DM Action Plan 2023: 9 actions verified on the first attempt (pp. 27–351); when the facility lookup timed out the agent adapted on its own; gaps listed as "Not found in district plan". |
 | `09-citation-verbatim-quote-live.png` | Citation modal: the quote highlighted inside the actual text of GCC CDMP 2025 page 24. |
+| `10-plan-data-chennai.png` | Structured plan data for Chennai, extracted by code from the real GCC plan: gaps (33 malformed numbers; 116 of 142 shelters without capacity), shelters with capacity and page links. |
+| `11-readiness-on-live-run.png` | Readiness chips on the real Gemini Chennai run (Pumps: Ready from plan inventory; Backup power / Road access: Unverified) and task states (in progress, blocked, overdue). |
+| `12-action-tracker.png` | The tracker across districts: counts, an overdue blocked task with its reason, departments, readiness. |
+| `13-impact-hazard-profile.png` | Impact tab: the live ensemble intensity profile; terrain was rate-limited on the build IP, so no cells are drawn and the reason is shown. |
 
 Not shown live from the build environment: OpenStreetMap facilities (every Overpass mirror timed out through that
 network), TNSDMA-hosted district plans (host blocked there), and a public-message/CAP draft (no district crossed

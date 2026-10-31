@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FlaskConical, Radio, ShieldAlert } from "lucide-react";
+import { FlaskConical, Radio } from "lucide-react";
 import { Sparkline } from "../components/charts";
 import { ErrorBox, Loading } from "../components/ui";
 import { api } from "../lib/api";
@@ -22,7 +22,7 @@ export default function Sources() {
     setBusy(key);
     try {
       await api("/api/admin/chaos", { method: "POST", json: { source: key, enabled } });
-      toast({ kind: enabled ? "warn" : "ok", title: enabled ? `Simulated outage ON: ${key}` : `Restored: ${key}`, body: enabled ? "Run a scan (or the planner) to watch the fallback." : undefined });
+      toast({ kind: enabled ? "warn" : "ok", title: enabled ? `Simulated outage on: ${key}` : `Restored: ${key}` });
       reload();
     } catch (e) {
       toast({ kind: "danger", title: "Chaos switch refused", body: (e as Error).message });
@@ -36,49 +36,45 @@ export default function Sources() {
       <div className="hero">
         <div>
           <h1><Radio size={20} /> Sources</h1>
-          <div className="small muted">Every number in T-Minus comes from one of these live sources. Status, last fetch, latency and model run — straight from the fetch log.</div>
         </div>
       </div>
       {health.data && (
-        <div className="grid four" style={{ marginBottom: 14 }}>
+        <div className="grid three" style={{ marginBottom: 14 }}>
           <div className="card tight"><div className="section-title">Scheduler</div>{health.data.scheduler.alive ? <span className="pill ok">running · every {health.data.scheduler.interval_min} min</span> : <span className="pill warn">{health.data.scheduler.enabled ? "not alive" : "disabled"}</span>}<div className="tiny muted">next {istTime(health.data.scheduler.next_tick, true)}</div></div>
           <div className="card tight"><div className="section-title">Last scan</div>{health.data.last_scan ? <><b>{health.data.last_scan.status}</b> · {istTime(health.data.last_scan.finished_at, true)}<div className="tiny muted">{health.data.last_scan.districts_ok} ok · {health.data.last_scan.districts_failed} failed · {health.data.last_scan.duration_s}s</div></> : <span className="muted">none yet</span>}</div>
-          <div className="card tight"><div className="section-title">Agent LLM</div>{health.data.llm_configured ? <span className="pill ok">{health.data.llm_model}</span> : <span className="pill warn">not configured — planner unavailable</span>}<div className="tiny muted">embeddings: {health.data.embedding_backend}</div></div>
-          <div className="card tight"><div className="section-title">Knowledge base</div><b>{health.data.plan_documents}</b> plan document(s)<div className="tiny muted">boundaries: {health.data.boundaries_loaded} districts {health.data.boundary_source ? `· ${health.data.boundary_source}` : ""}</div></div>
+          <div className="card tight"><div className="section-title">Knowledge base</div><b>{health.data.plan_documents}</b> plan document(s)<div className="tiny muted">{health.data.boundaries_loaded} district boundaries</div></div>
         </div>
       )}
       <div className="card" style={{ marginBottom: 14 }}>
         <div className="row" style={{ marginBottom: 8 }}>
           <div className="section-title grow" style={{ margin: 0 }}>Live sources</div>
-          <span className="pill violet"><FlaskConical size={12} /> chaos switch {isAdmin ? "enabled (admin)" : "admin only"}</span>
+          {isAdmin && <span className="pill violet"><FlaskConical size={12} /> outage simulator</span>}
         </div>
         {loading && !data && <Loading label="Reading source status…" />}
         <ErrorBox error={error} what="source status" />
         {data && (
           <div className="scroll">
             <table className="t">
-              <thead><tr><th>Status</th><th>Source</th><th>Used for</th><th>Last fetch</th><th>Latency</th><th>Model run</th><th>Last error</th><th title="Admin-only fault injection (§8.4)">Simulate outage</th></tr></thead>
+              <thead><tr><th>Status</th><th>Source</th><th>Last fetch</th><th>Latency</th><th>Model run</th><th>Last error</th>{isAdmin && <th>Simulate outage</th>}</tr></thead>
               <tbody>
-                {data.sources.map((s: any) => (
+                {data.sources.filter((s: any) => s.status !== "disabled").map((s: any) => (
                   <tr key={s.key}>
                     <td><span className="row" style={{ gap: 6 }}><span className={`dot ${DOT[s.status] || "off"}`} /> <b className="small">{s.status}</b></span></td>
                     <td><div><b>{s.name}</b></div><div className="tiny muted">{s.provider}</div></td>
-                    <td className="small muted">{s.used_for}</td>
-                    <td className="small">{s.last_fetch_at ? <>{istTime(s.last_fetch_at, true)}<div className="tiny muted">{ago(s.last_fetch_at)} · {s.calls} calls · {s.failures} failed</div></> : <span className="faint">{s.disabled_reason || "—"}</span>}</td>
+                    <td className="small">{s.last_fetch_at ? <>{istTime(s.last_fetch_at, true)}<div className="tiny muted">{ago(s.last_fetch_at)} · {s.calls} calls · {s.failures} failed</div></> : <span className="faint">—</span>}</td>
                     <td><div className="mono small">{s.latency_ms != null ? `${s.latency_ms} ms` : "—"}</div><Sparkline values={s.latency_history || []} /></td>
                     <td className="mono tiny">{s.model_run || "—"}</td>
                     <td className="tiny" style={{ color: s.last_error ? "var(--act)" : undefined, maxWidth: 260 }}>{s.last_error || ""}</td>
-                    <td>{s.chaos_allowed && <button className={`switch ${s.status === "simulated outage" ? "on" : ""}`} disabled={!isAdmin || busy === s.key} title={isAdmin ? "Force this source to fail" : "Admin only"} onClick={() => toggle(s.key, s.status !== "simulated outage")} aria-label={`Simulate outage for ${s.name}`} />}</td>
+                    {isAdmin && <td>{s.chaos_allowed && <button className={`switch ${s.status === "simulated outage" ? "on" : ""}`} disabled={!isAdmin || busy === s.key} title={isAdmin ? "Force this source to fail" : "Admin only"} onClick={() => toggle(s.key, s.status !== "simulated outage")} aria-label={`Simulate outage for ${s.name}`} />}</td>}
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
-        {!isAdmin && <div className="banner info small" style={{ marginTop: 10 }}><ShieldAlert size={14} /> The chaos switch forces a chosen source client to fail so the fallback path can be shown live. Each forced failure is labelled “simulated outage” here and in the fetch log. Admin login required.</div>}
       </div>
       <div className="card">
-        <div className="section-title">Raw fetch log (every API call, with its stored response)</div>
+        <div className="section-title">Fetch log</div>
         <table className="t small">
           <thead><tr><th>Time</th><th>Source</th><th>Status</th><th>HTTP</th><th>Latency</th><th>Size</th><th>Fetch</th></tr></thead>
           <tbody>

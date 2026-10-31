@@ -39,9 +39,9 @@ async def lifespan(app: FastAPI):
     sync_districts()
     registry.warm_from_db()
     if not settings.ors_api_key:
-        registry.set_disabled("ors", "ORS_API_KEY not set")
+        registry.set_disabled("ors", "Not configured")
     if not settings.imd_enabled:
-        registry.set_disabled("imd", "IMD API needs IP whitelisting — optional, disabled")
+        registry.set_disabled("imd", "Not enabled")
     from app.agent.llm import get_llm
 
     get_llm()  # registers disabled status when no key

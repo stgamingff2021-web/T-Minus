@@ -10,16 +10,24 @@ import { useApp } from "../lib/app";
 import { useApi, useRunTrace } from "../lib/hooks";
 import { istTime } from "../lib/format";
 
+const KEY_LABEL: Record<string, string> = {
+  probability_pct: "probability %", members_exceeding: "members", valid_members: "of", threshold_mm: "threshold mm",
+  t_minus_h: "hours to impact", earliest_onset_h: "onset h", within_h: "window h", level: "level", category: "category",
+};
+
 export default function Run() {
   const { id } = useParams();
   const { data, error, loading, reload, setData } = useApi<any>(`/api/runs/${id}`, 0);
   const { events, connected, ended } = useRunTrace(id ?? null);
   const { user } = useApp();
+  const readiness = useApi<any>(id ? `/api/runs/${id}/readiness` : null, 0);
+  const tasks = useApi<any>(id ? `/api/tasks?run_id=${id}` : null, 0);
+  const tasksByAction = useMemo(() => Object.fromEntries((tasks.data?.tasks || []).map((t: any) => [t.action_id, t])), [tasks.data]);
 
   // refresh the plan when the run finishes (and while it runs, every few seconds)
   useEffect(() => {
-    if (ended) reload();
-  }, [ended, reload]);
+    if (ended) { reload(); readiness.reload(); }
+  }, [ended, reload]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (data?.run?.status !== "running") return;
     const t = window.setInterval(reload, 4000);
@@ -56,10 +64,10 @@ export default function Run() {
 
       {run.status === "unavailable" && (
         <div className="banner warn" style={{ marginBottom: 12 }}>
-          <AlertTriangle size={16} /> {plan?.gather_note || `Planner temporarily unavailable (${run.error})`} The scanner, triggers and map keep working; the relevant plan sections retrieved for this district are listed below.
+          <AlertTriangle size={16} /> {plan?.gather_note || "Planner unavailable"} · relevant plan sections below
         </div>
       )}
-      {run.status === "partial" && <div className="banner danger" style={{ marginBottom: 12 }}><AlertTriangle size={16} /> Partial plan — the verifier still found problems after all retries. Problems are marked on each action; communications were not drafted.</div>}
+      {run.status === "partial" && <div className="banner danger" style={{ marginBottom: 12 }}><AlertTriangle size={16} /> Partial plan · problems marked on each action</div>}
       {run.status === "failed" && <div className="banner danger" style={{ marginBottom: 12 }}><AlertTriangle size={16} /> Run failed: {run.error}</div>}
 
       <div className="runlayout">
@@ -73,30 +81,31 @@ export default function Run() {
                 <div className="small muted" style={{ marginTop: 6 }}><b>Computed by code:</b> {plan.evidence_summary_code}</div>
               )}
               <div className="row wrap small" style={{ marginTop: 8, gap: 6 }}>
-                {Object.entries(head).map(([k, v]: any) => <span key={k} className="pill mono">{k}: {v}</span>)}
+                {Object.entries(head).filter(([, v]: any) => v !== null && v !== "").map(([k, v]: any) => <span key={k} className="pill mono">{KEY_LABEL[k] || k.replace(/_/g, " ")}: {v}</span>)}
               </div>
-              <div className="tiny faint" style={{ marginTop: 6 }}>key_numbers are copied from the scanner's assessment by code — never produced by the LLM. Data: {istTime(plan.data_timestamps?.data_time, true)} · run {plan.data_timestamps?.model_run}</div>
+              <div className="tiny faint" style={{ marginTop: 6 }}>Data {istTime(plan.data_timestamps?.data_time, true)} · run {plan.data_timestamps?.model_run}</div>
             </div>
           )}
 
           {(data.actions || []).length > 0 && (
             <div className="card">
               <div className="row" style={{ marginBottom: 8 }}>
-                <div className="section-title grow" style={{ margin: 0 }}>Countdown-phased actions</div>
+                <div className="section-title grow" style={{ margin: 0 }}>Actions</div>
                 <span className="pill ok">{counts.district_plan || 0} from plan</span>
                 <span className="pill info">{counts.generic_guidance || 0} NDMA generic</span>
                 <span className="pill warn">{counts.suggested || 0} suggested</span>
                 {verification?.passed ? <span className="pill ok"><ShieldCheck size={12} /> verified</span> : verification ? <span className="pill danger">verify: {verification.problems.length} problem(s)</span> : null}
               </div>
-              {!user && <div className="banner info small" style={{ marginBottom: 8 }}>Log in as an officer to approve, edit or reject actions.</div>}
-              <ActionTimeline actions={data.actions} tMinus={tMinus} onUpdate={updateAction} canAct={!!user} />
+              {!user && <div className="banner info small" style={{ marginBottom: 8 }}>Log in to approve actions</div>}
+              <ActionTimeline actions={data.actions} tMinus={tMinus} onUpdate={(a) => { updateAction(a); tasks.reload(); }} canAct={!!user}
+                readiness={readiness.data?.by_action} tasks={tasksByAction} onReadinessChange={readiness.reload} />
             </div>
           )}
 
           <div className="grid two">
             {plan && (
               <div className="card">
-                <div className="section-title"><CircleHelp size={12} /> Open questions for the officer</div>
+                <div className="section-title"><CircleHelp size={12} /> Open questions</div>
                 <ul className="small" style={{ margin: 0, paddingLeft: 18 }}>{(plan.open_questions || []).map((q: string, i: number) => <li key={i}>{q}</li>)}</ul>
                 {!(plan.open_questions || []).length && <div className="small muted">None.</div>}
                 <div className="section-title" style={{ marginTop: 12 }}><AlertTriangle size={12} /> Data warnings</div>
@@ -111,8 +120,8 @@ export default function Run() {
 
           {verification && (
             <div className="card">
-              <div className="section-title"><FileCheck2 size={12} /> Verification report (code hard checks)</div>
-              <div className="small">{verification.passed ? "All hard checks passed: schema, verbatim citations, numbers, facilities, phasing." : `${verification.problems.length} problem(s) remained:`}</div>
+              <div className="section-title"><FileCheck2 size={12} /> Verification</div>
+              <div className="small">{verification.passed ? "All checks passed" : `${verification.problems.length} problem(s)`}</div>
               <ul className="small">{(verification.problems || []).map((p: any, i: number) => <li key={i}><span className="pill">{p.check}</span> {p.message}</li>)}</ul>
               {plan?.critic && <div className="small muted">Critic: <b>{plan.critic.verdict}</b>{plan.critic.gaps?.length ? ` · gaps: ${plan.critic.gaps.join("; ")}` : ""}</div>}
             </div>
@@ -120,7 +129,7 @@ export default function Run() {
 
           <div className="card" style={{ padding: 0, overflow: "hidden" }}>
             <div className="row" style={{ padding: "10px 14px" }}>
-              <div className="section-title grow" style={{ margin: 0 }}><MapPinned size={12} /> Map layers from this run</div>
+              <div className="section-title grow" style={{ margin: 0 }}><MapPinned size={12} /> Map</div>
               <span className="tiny muted">{mapLayers.facilities.length} OSM facilities · {mapLayers.areas.length} at-risk areas · {mapLayers.routes.length} safe routes</span>
             </div>
             {district && (
@@ -128,13 +137,13 @@ export default function Run() {
                 center={[district.hq[1], district.hq[0]]} zoom={9.5} height={380} />
             )}
             {(data.state?.unresolved_places || []).length > 0 && (
-              <div className="small muted" style={{ padding: "8px 14px" }}>Unresolved plan place names (not geocoded): {data.state.unresolved_places.join(", ")}</div>
+              <div className="small muted" style={{ padding: "8px 14px" }}>Not located: {data.state.unresolved_places.join(", ")}</div>
             )}
           </div>
 
           {run.status === "unavailable" && (data.state?.retrieved_chunks || []).length > 0 && (
             <div className="card">
-              <div className="section-title">Retrieved plan sections (retrieval-only mode)</div>
+              <div className="section-title">Relevant plan sections</div>
               {data.state.retrieved_chunks.map((c: any) => (
                 <div key={c.chunk_id} className="card tight" style={{ marginBottom: 8, background: "var(--panel2)" }}>
                   <div className="small"><b>{c.document_title}</b> · p. {c.page} {c.section ? `· ${c.section}` : ""}</div>

@@ -1,7 +1,11 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { AlertTriangle, BookOpenText, Bot, Calculator, Droplets, FileSearch, History, Loader2, Waves, XCircle } from "lucide-react";
+import { AssetsPanel } from "../components/AssetsPanel";
 import { FuturesChart, RiverChart } from "../components/charts";
+import { ImpactPanel } from "../components/ImpactPanel";
+import { PlanDataPanel } from "../components/PlanDataPanel";
+import { TasksTable } from "../components/TasksTable";
 import { ConfirmDialog, Countdown, ErrorBox, LevelBadge, Loading, Modal } from "../components/ui";
 import { api } from "../lib/api";
 import { useApp } from "../lib/app";
@@ -13,13 +17,13 @@ const CAT_ORDER: Record<string, number> = { very_heavy: 0, extremely_heavy: 1, h
 function RecomputeModal({ assessmentId, onClose }: { assessmentId: string; onClose: () => void }) {
   const { data, error, loading } = useApi<any>(`/api/assessments/${assessmentId}/recompute`);
   return (
-    <Modal title="Recompute from the raw API response (AC-02)" onClose={onClose} wide>
-      {loading && <Loading label="Reloading the stored raw payload and recomputing…" />}
+    <Modal title="Recompute from raw data" onClose={onClose} wide>
+      {loading && <Loading label="Recomputing…" />}
       <ErrorBox error={error} what="the recomputation" />
       {data && (
         <>
           <div className={`banner ${data.all_match ? "ok" : "danger"}`}>
-            {data.all_match ? "✓ Every displayed probability equals (members above threshold ÷ valid members), recomputed now from the stored raw response." : "✗ Mismatch between stored and recomputed values."}
+            {data.all_match ? "✓ All probabilities match the stored raw response." : "✗ Stored and recomputed values differ."}
           </div>
           <div className="small">
             <b>Formula:</b> <span className="mono">{data.formula}</span>
@@ -42,7 +46,7 @@ function RecomputeModal({ assessmentId, onClose }: { assessmentId: string; onClo
             </tbody>
           </table>
           <details>
-            <summary className="small">Each member's maximum 24-h total inside the {data.rows[0]?.key} window</summary>
+            <summary className="small">Member maxima ({data.rows[0]?.key})</summary>
             <div className="mono tiny" style={{ columns: 3, marginTop: 8 }}>
               {Object.entries(data.rows[0]?.member_max_24h_mm || {}).map(([k, v]: any) => (
                 <div key={k} style={{ color: v !== null && v >= data.rows[0].threshold_mm ? "var(--prepare)" : undefined }}>{k.replace("precipitation", "ctl").replace("_member", "m")}: {v === null ? "missing" : `${v} mm`}</div>
@@ -64,8 +68,9 @@ export default function District() {
   const [recompute, setRecompute] = useState(false);
   const [closing, setClosing] = useState<string | null>(null);
   const [note, setNote] = useState("");
+  const [tab, setTab] = useState("forecast");
 
-  if (loading && !data) return <div className="page"><Loading label="Fetching district assessment…" /></div>;
+  if (loading && !data) return <div className="page"><Loading label="Loading…" /></div>;
   if (error && !data) return <div className="page"><ErrorBox error={error} what="this district" /></div>;
   if (!data) return null;
   const d = data.district;
@@ -96,40 +101,48 @@ export default function District() {
     }
   };
 
-  const active = (d.triggers || []).filter((x: any) => x.status !== "closed");
   return (
     <div className="page">
       <div className="hero">
         <div>
           <div className="small muted"><Link to="/">Command map</Link> / {d.state}</div>
           <h1>{d.name}</h1>
-          <div className="small muted">{d.aliases?.length ? `Also: ${d.aliases.join(", ")}` : ""}</div>
         </div>
         <LevelBadge level={d.level} big noData={!rain && !d.level} />
         {d.level && d.t_star && (
           <div className="big-cd">
             <Countdown target={d.t_star} />
-            <small>TO EXPECTED IMPACT (t*) · {istTime(d.t_star, true)}</small>
+            <small>TO EXPECTED IMPACT · {istTime(d.t_star, true)}</small>
           </div>
         )}
         <div className="row right wrap">
-          {rain && <button className="btn" onClick={() => setRecompute(true)}><Calculator size={15} /> Recompute from raw</button>}
+          {rain && <button className="btn" onClick={() => setRecompute(true)}><Calculator size={15} /> Recompute</button>}
           <button className="btn primary" onClick={() => runPlanner("rain")} disabled={busy}>
-            {busy ? <Loader2 size={15} className="spin" /> : <Bot size={15} />} Run planner {user ? "" : "(login)"}
+            {busy ? <Loader2 size={15} className="spin" /> : <Bot size={15} />} Run planner
           </button>
         </div>
       </div>
 
       <div className="col" style={{ marginBottom: 14 }}>
-        {rain?.stale && <div className="banner warn"><AlertTriangle size={16} /> STALE · last updated {istTime(rain.data_time, true)} ({ago(rain.data_time)}). {rain.insufficient ? "Data older than 6 h — insufficient for new triggers." : ""}</div>}
-        {rain?.degraded && <div className="banner warn"><AlertTriangle size={16} /> Degraded: only {rain.n_valid} of {rain.n_members} ensemble members valid (below 80%).</div>}
+        {rain?.stale && <div className="banner warn"><AlertTriangle size={16} /> Stale · updated {istTime(rain.data_time, true)} ({ago(rain.data_time)}){rain.insufficient ? " · too old for new triggers" : ""}</div>}
+        {rain?.degraded && <div className="banner warn"><AlertTriangle size={16} /> Degraded · {rain.n_valid}/{rain.n_members} members valid</div>}
         {flags.disagreement && <div className="banner warn"><AlertTriangle size={16} /> {(flags.notes || []).find((n: string) => n.startsWith("Sources disagree")) || "Sources disagree"}</div>}
-        {flags.official_available === false && <div className="banner info">Official alerts unavailable ({flags.official_alerts_error || "SACHET unreachable"}) — continuing on the ensemble alone.</div>}
-        {(flags.fallback_from || []).length > 0 && <div className="banner info">Primary ensemble failed ({flags.fallback_from.join("; ")}) — using {rain.model}.</div>}
-        {!d.has_plan && <div className="banner info"><BookOpenText size={16} /> No district plan ingested for {d.name}. The planner will use only labelled NDMA generic guidance. <Link to="/plans">Upload the official DDMP →</Link></div>}
-        {!rain && <div className="banner warn">No live assessment yet — waiting for a successful scan. Nothing is estimated in the meantime.</div>}
+        {flags.official_available === false && <div className="banner info">Official alerts unavailable</div>}
+        {(flags.fallback_from || []).length > 0 && <div className="banner info">Using {rain.model} · primary ensemble failed</div>}
+        {!d.has_plan && <div className="banner info"><BookOpenText size={16} /> No district plan · <Link to="/plans">Add plan</Link></div>}
+        {!rain && <div className="banner warn">No live assessment yet</div>}
       </div>
 
+      <div className="tabs">
+        {[["forecast", "Forecast"], ["impact", "Impact areas"], ["assets", "Critical assets"], ["plan", "Plan data"], ["tasks", "Tasks"]].map(([k, label]) => (
+          <button key={k} className={`tab ${tab === k ? "active" : ""}`} onClick={() => setTab(k)}>{label}</button>
+        ))}
+      </div>
+      {tab === "impact" && <ImpactPanel district={d} />}
+      {tab === "assets" && <AssetsPanel district={d} />}
+      {tab === "plan" && <PlanDataPanel districtId={d.id} />}
+      {tab === "tasks" && <div className="card"><TasksTable districtId={d.id} showDistrict={false} /></div>}
+      {tab === "forecast" && (<>
       {rain && (
         <div className="grid two" style={{ marginBottom: 14 }}>
           <div className="card hazard-card">
@@ -142,11 +155,11 @@ export default function District() {
                   <span className="muted">({head.n_exceed} of {head.n_valid} forecasts) within {head.within_h} h</span>
                 </div>
                 <div className="small">
-                  {head.t_minus_h != null ? <>Expected in <b>~{num(head.t_minus_h, 0)} h</b> ({istTime(rain.t_star, true)}) · earliest onset <b>~{num(head.onset_h, 0)} h</b></> : "No hour where members agree on an exceedance."}
+                  {head.t_minus_h != null ? <>Expected in <b>~{num(head.t_minus_h, 0)} h</b> ({istTime(rain.t_star, true)}) · earliest onset <b>~{num(head.onset_h, 0)} h</b></> : "No expected impact time."}
                 </div>
               </>
             ) : (
-              <div className="headline">No ensemble member reaches {CATEGORY_LABEL.heavy.toLowerCase()} thresholds in the next 5 days.</div>
+              <div className="headline">No member reaches {CATEGORY_LABEL.heavy.toLowerCase()} in 5 days</div>
             )}
             <div className="divider" />
             <table className="t small">
@@ -169,7 +182,7 @@ export default function District() {
             </div>
           </div>
           <div className="card">
-            <div className="section-title">Level resolution (code, §6.5)</div>
+            <div className="section-title">Level</div>
             <dl className="kv">
               <dt>Ensemble base level</dt><dd><LevelBadge level={rain.base_level} /></dd>
               <dt>Official alerts</dt>
@@ -181,7 +194,7 @@ export default function District() {
               <dt>River (GloFAS)</dt><dd>{flags.river_level ? <LevelBadge level={flags.river_level} /> : <span className="muted">below WATCH / no data</span>} {flags.compound ? <span className="pill warn">compound hazard</span> : null}</dd>
               <dt>Escalation (+1 max)</dt><dd>{(flags.escalations || []).join(", ") || <span className="muted">none</span>}</dd>
               <dt>Resolved level</dt><dd><LevelBadge level={rain.level} /></dd>
-              <dt>Hysteresis level</dt><dd><LevelBadge level={rain.hysteresis_level} /> <span className="tiny muted">(thresholds − 0.15)</span></dd>
+              <dt>Hysteresis level</dt><dd><LevelBadge level={rain.hysteresis_level} /></dd>
             </dl>
             <ul className="small muted" style={{ marginBottom: 0 }}>{(flags.notes || []).map((n: string, i: number) => <li key={i}>{n}</li>)}</ul>
           </div>
@@ -191,18 +204,18 @@ export default function District() {
       {data.futures && head && (
         <div className="card" style={{ marginBottom: 14 }}>
           <div className="row">
-            <div className="section-title grow">Futures chart — {data.futures.members.length} ensemble members, 24-hour accumulation</div>
+            <div className="section-title grow">{data.futures.members.length} forecasts · 24-h rain</div>
             <span className="tiny muted">{data.futures.model} · fetched {istTime(data.futures.fetched_at, true)}</span>
           </div>
           <FuturesChart data={data.futures} threshold={head.threshold_mm} windowH={head.within_h} tStar={head.t_star} onset={head.onset} />
-          <div className="tiny muted">Orange lines: members crossing {head.threshold_mm} mm inside the {head.within_h} h trigger window (shaded blue). Red band: the 24 hours ending at t*, the hour the futures agree on most.</div>
+          <div className="tiny muted">orange: above {head.threshold_mm} mm · blue: {head.within_h} h window · red: expected impact</div>
         </div>
       )}
 
       <div className="grid two" style={{ marginBottom: 14 }}>
         <div className="card">
           <div className="section-title"><History size={12} /> Triggers</div>
-          {!(data.triggers || []).length && <div className="muted small">No trigger has fired for {d.name}.</div>}
+          {!(data.triggers || []).length && <div className="muted small">No triggers</div>}
           {(data.triggers || []).map((tr: any) => (
             <div key={tr.id} className="card tight" style={{ marginBottom: 8, background: "var(--panel2)" }}>
               <div className="row wrap">
@@ -222,11 +235,10 @@ export default function District() {
               </details>
             </div>
           ))}
-          {active.length > 0 && <div className="tiny muted">Stand-down is only ever a recommendation — an officer closes a trigger.</div>}
         </div>
         <div className="card">
           <div className="section-title"><Bot size={12} /> Planner runs</div>
-          {!(data.runs || []).length && <div className="muted small">No planner run yet. Use “Run planner” — it works for any district, with or without a trigger.</div>}
+          {!(data.runs || []).length && <div className="muted small">No runs yet</div>}
           <table className="t small">
             <tbody>
               {(data.runs || []).map((r: any) => (
@@ -240,18 +252,17 @@ export default function District() {
             </tbody>
           </table>
           <div className="divider" />
-          <div className="section-title"><FileSearch size={12} /> District plan documents</div>
+          <div className="section-title"><FileSearch size={12} /> Plan documents</div>
           {(data.plan_documents || []).map((p: any) => (
             <div key={p.id} className="small">📄 {p.title} {p.edition_year ? `(${p.edition_year})` : ""} · {p.pages} pp · {p.source_url ? <a href={p.source_url} target="_blank" rel="noreferrer">official source</a> : "uploaded"}</div>
           ))}
-          {!(data.plan_documents || []).length && <div className="small muted">None yet. <Link to="/plans">Upload / ingest →</Link></div>}
+          {!(data.plan_documents || []).length && <div className="small muted">None · <Link to="/plans">Add plan</Link></div>}
         </div>
       </div>
 
       {data.river && (
         <div className="card" style={{ marginBottom: 14 }}>
-          <div className="section-title"><Waves size={12} /> River discharge (GloFAS v4) — supporting evidence</div>
-          <div className="banner info small" style={{ marginBottom: 10 }}>{data.river_caveat}</div>
+          <div className="section-title" title={data.river_caveat}><Waves size={12} /> River discharge (GloFAS)</div>
           <div className="grid two">
             {(data.river.points || []).map((p: any) => (
               <div key={p.point_id}>
@@ -264,10 +275,12 @@ export default function District() {
         </div>
       )}
 
+      </>)}
+
       {recompute && rain && <RecomputeModal assessmentId={rain.id} onClose={() => setRecompute(false)} />}
       {closing && (
         <ConfirmDialog title="Confirm stand-down and close this trigger?" confirmLabel="Close trigger" danger onCancel={() => setClosing(null)} onConfirm={closeTrigger}>
-          <p className="small" style={{ margin: 0 }}>This closes the trigger (CAP msgType <b>Cancel</b>). It is logged in the audit trail with your name. T-Minus never closes PREPARE/ACT triggers on its own.</p>
+          <p className="small" style={{ margin: 0 }}>Closes the trigger and issues a CAP Cancel.</p>
           <label className="field">Note (optional)<input className="input" value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} /></label>
         </ConfirmDialog>
       )}

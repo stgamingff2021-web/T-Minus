@@ -62,3 +62,15 @@ Where the specification left a detail open, the implementation made the assumpti
 | D-01 | Exact official PDF links for the TNSDMA DDMPs, the GCC city plan and NDMA guidelines must be copied from the official portals during setup (`config/plans.yaml` lists the landing pages; no link is guessed). |
 | D-02 | Chunks never cross a page boundary; section headings are detected from numbering/capitalisation and carried across pages. |
 | D-03 | Pages without a text layer are OCR'd with Tesseract (English); pages with mean confidence < 70 are flagged for review. |
+
+
+## Readiness, impact and execution (features 1–6)
+
+| # | Assumption |
+|---|---|
+| E-01 | Plan structuring is deterministic (no LLM). PDF tables arrive one cell per line, so parsers favour precision: a capacity is taken only from a table row whose numbers align with the header's numeric columns or from an explicit "N relief centres … capacity M" sentence; a numbered index with page numbers ("18 Rescue Boats 742") is never read as a quantity; 7-digit landlines count only next to a mobile number or a phone cue. Checked on the real GCC and Puducherry plans. |
+| E-02 | "Outdated plan" = edition year two or more years before the current year (DM Act 2005, s.31(4): reviewed and updated annually). |
+| E-03 | Readiness: **Ready** needs positive, current evidence (plan figure in an edition no older than `readiness.plan_max_age_years`, a computed route, OSM backup-power/beds tags, or an officer confirmation); **Unavailable** needs positive evidence of absence (plan lists nil; no shelter in the plan or a successful OSM search; officer marking); everything else is **Unverified**. Requirements are detected from keywords in `config/hazards.yaml`. |
+| E-04 | Tracker due times: "Do now" = approval + `tracker.do_now_due_h` (2 h); T-48h/T-24h/T-6h = expected impact (t*) minus 48/24/6 h; no t* → no due time. Rejecting an action cancels its task. |
+| E-05 | Impact: the ensemble grid (~25 km) makes the hazard district-wide; local variation comes from terrain. Susceptibility = weighted low-elevation rank, local depression and river proximity (weights in config, documented as model parameters, not measurements). Impact = hazard × (0.4 + 0.6 × susceptibility). Wind = ensemble probability of ≥ 62 km/h sustained (IMD cyclonic storm) within 72 h, fetched separately so it can never affect the scanner. No terrain → no cells. |
+| E-06 | Assets come from OpenStreetMap (name and tag filters) and are therefore incomplete; plan-named assets are listed with their page. Relocation options are storage sites meaningfully safer than the asset's own (lower impact, not high risk), with straight-line distance; travel time requires a route and is shown as unchecked. Protection measures are labelled "Suggested — not in district plan". |

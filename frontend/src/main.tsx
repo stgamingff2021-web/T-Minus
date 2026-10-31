@@ -21,9 +21,10 @@ const Replay = lazy(() => import("./pages/Replay"));
 const Plans = lazy(() => import("./pages/Plans"));
 const Public = lazy(() => import("./pages/Public"));
 const Audit = lazy(() => import("./pages/Audit"));
+const Tracker = lazy(() => import("./pages/Tracker"));
 
 function NotFound() {
-  return <div className="page"><div className="card empty">Page not found. <a href="/">Back to the command map</a></div></div>;
+  return <div className="page"><div className="card empty">Page not found · <a href="/">Command map</a></div></div>;
 }
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
@@ -41,6 +42,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
               <Route path="/plans" element={<Plans />} />
               <Route path="/public" element={<Public />} />
               <Route path="/audit" element={<Audit />} />
+              <Route path="/tracker" element={<Tracker />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>

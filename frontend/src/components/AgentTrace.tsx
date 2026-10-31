@@ -25,7 +25,7 @@ function describe(ev: TraceEvent): string {
     case "thinking":
       return p.text;
     case "verify":
-      return p.passed ? `VERIFY ✓ ${p.stats?.actions} actions, ${p.stats?.citations} citations — every quote is an exact substring of its page` : `VERIFY ✗ ${p.problems.length} problem(s):\n${p.problems.map((x: any) => `  • ${x.message}`).join("\n")}`;
+      return p.passed ? `VERIFY ✓ ${p.stats?.actions} actions · ${p.stats?.citations} citations` : `VERIFY ✗ ${p.problems.length} problem(s):\n${p.problems.map((x: any) => `  • ${x.message}`).join("\n")}`;
     case "critic":
       return `CRITIC: ${p.verdict}${p.issues?.length ? ` — ${p.issues.join("; ")}` : ""}${p.gaps?.length ? ` · gaps: ${p.gaps.join("; ")}` : ""}`;
     case "llm":

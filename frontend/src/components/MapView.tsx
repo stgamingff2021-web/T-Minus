@@ -37,7 +37,10 @@ export type MapLayers = {
   facilities?: { id: string; name?: string; type: string; lat: number; lon: number }[];
   areas?: { id: string; name: string; lat: number; lon: number }[];
   routes?: { id: string; geometry: any; distance_m?: number; duration_s?: number }[];
+  cells?: { lat: number; lon: number; cls: string; label?: string }[];
 };
+
+const CELL_COLOR = ["match", ["get", "cls"], "high", "#ef4444", "medium", "#f97316", "low", "#eab308", "#64748b"];
 
 function districtsGeoJSON(ds: MapDistrict[]) {
   const polys: any[] = [];
@@ -193,26 +196,32 @@ export function MapView({
         features: (layers.areas || []).map((a) => ({ type: "Feature", geometry: { type: "Point", coordinates: [a.lon, a.lat] }, properties: { name: a.name } })),
       };
       const routes = { type: "FeatureCollection", features: (layers.routes || []).map((r) => ({ type: "Feature", geometry: r.geometry, properties: { id: r.id } })) };
+      const cells = {
+        type: "FeatureCollection",
+        features: (layers.cells || []).map((c) => ({ type: "Feature", geometry: { type: "Point", coordinates: [c.lon, c.lat] }, properties: { cls: c.cls, name: c.label || `Impact ${c.cls}` } })),
+      };
       const upsert = (id: string, data: any) => {
         const src = map.getSource(id) as maplibregl.GeoJSONSource | undefined;
         if (src) src.setData(data as any);
         else map.addSource(id, { type: "geojson", data: data as any });
       };
+      upsert("r-cells", cells);
       upsert("r-fac", fac);
       upsert("r-areas", areas);
       upsert("r-routes", routes);
       if (!map.getLayer("r-routes")) {
+        map.addLayer({ id: "r-cells", type: "circle", source: "r-cells", paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"], 7, 5, 12, 22], "circle-color": CELL_COLOR as any, "circle-opacity": ["match", ["get", "cls"], "minimal", 0.18, 0.5], "circle-stroke-width": 0 } });
         map.addLayer({ id: "r-routes", type: "line", source: "r-routes", paint: { "line-color": "#38bdf8", "line-width": 4, "line-opacity": 0.85 } });
         map.addLayer({ id: "r-areas", type: "circle", source: "r-areas", paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"], 8, 8, 14, 40], "circle-color": "#ef4444", "circle-opacity": 0.25, "circle-stroke-color": "#ef4444", "circle-stroke-width": 1.5 } });
         map.addLayer({
           id: "r-fac", type: "circle", source: "r-fac",
-          paint: { "circle-radius": 5, "circle-stroke-width": 1.5, "circle-stroke-color": "#0b1118", "circle-color": ["match", ["get", "type"], "hospital", "#f472b6", "clinic", "#f9a8d4", "shelter", "#22c55e", "school", "#a78bfa", "community_centre", "#34d399", "fire_station", "#fb923c", "police", "#60a5fa", "#94a3b8"] },
+          paint: { "circle-radius": 5, "circle-stroke-width": 1.5, "circle-stroke-color": "#0b1118", "circle-color": ["match", ["get", "type"], "hospital", "#f472b6", "clinic", "#f9a8d4", "shelter", "#22c55e", "school", "#a78bfa", "community_centre", "#34d399", "fire_station", "#fb923c", "police", "#60a5fa", "grain_storage", "#eab308", "cold_storage", "#06b6d4", "seed_store", "#84cc16", "substation", "#f59e0b", "water_works", "#3b82f6", "fuel", "#a3a3a3", "#94a3b8"] },
         });
         const popup = new maplibregl.Popup({ closeButton: false, offset: 8 });
-        for (const l of ["r-fac", "r-areas"]) {
+        for (const l of ["r-fac", "r-areas", "r-cells"]) {
           map.on("mousemove", l, (e: any) => {
             const p = e.features?.[0]?.properties;
-            if (p) popup.setLngLat(e.lngLat).setHTML(`<b>${p.name}</b>${p.type ? `<br/><span style="opacity:.75">${p.type}</span>` : "<br/><span style='opacity:.75'>at-risk area (from plan)</span>"}`).addTo(map);
+            if (p) popup.setLngLat(e.lngLat).setHTML(`<b>${p.name}</b>${p.type ? `<br/><span style="opacity:.75">${String(p.type).replace("_", " ")}</span>` : p.cls ? "" : "<br/><span style='opacity:.75'>at-risk area</span>"}`).addTo(map);
           });
           map.on("mouseleave", l, () => popup.remove());
         }

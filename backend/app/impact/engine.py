@@ -189,7 +189,7 @@ async def wind_hazard(hq: tuple[float, float]) -> dict:
     model = cfg.get("wind_model", "ecmwf_ifs025")
     thr = cfg.get("wind_kmh") or {"cyclonic": 62, "severe": 89}
     try:
-        res, pts = await fetch_ensemble_multi([hq], model, ["wind_speed_10m"], forecast_days=3)
+        res, pts = await fetch_ensemble_multi([hq], model, ["wind_speed_10m"], forecast_days=3, source="wind")
     except (SourceError, ValueError, KeyError) as exc:
         return {"available": False, "error": str(exc)[:200]}
     p = pts[0]["wind_speed_10m"]

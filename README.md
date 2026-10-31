@@ -23,6 +23,11 @@ Built for the **Forge Gen AI Buildathon · Theme 2: Climate, Resource Infrastruc
 | **Communications** | One-page PDF briefing; English (≤ 160 GSM-7) and Tamil (≤ 134 UCS-2) public messages with live counters; CAP 1.2 XML validated against the official OASIS XSD with `status = Exercise`. |
 | **Sources panel + chaos switch** | Status, last fetch, latency and model run of every source; admins can force a source to fail (labelled *simulated outage*) to show the ECMWF → GFS fallback live. |
 | **Replay** | Backtests real past events (Cyclone Fengal 2024) using **forecasts as issued at the time** (Open-Meteo Previous Runs API — never the Historical Forecast API), reporting when each level would have fired relative to the observed rainfall peak, plus a quiet-period false-alarm check. |
+| **Plan as data** | The district plan becomes a searchable database — contacts, shelters with capacity, equipment (inventory vs past use), department duties, SOPs, critical assets — each record with its page and exact quote, extracted by code. A gap check flags what is missing or old: no shelter list, shelters without capacity, malformed phone numbers, an edition past its annual review (DM Act 2005, s.31(4)). |
+| **Local impact** | A grid inside the district scored from real terrain (Copernicus DEM: low ground, depressions) and river proximity, multiplied by the live hazard (ensemble rain probability, cyclonic-wind probability, saturated ground). The most affected localities are named from OpenStreetMap. |
+| **Readiness check** | Every action is checked for what it needs — shelter, transport, rescue equipment, pumps, staff, road access, backup power, medical — and marked **Ready**, **Unavailable** or **Unverified** from plan figures, OpenStreetMap and routes. Missing evidence is never "Ready"; officers can confirm. |
+| **Critical assets** | Food and grain godowns, cold storage, seed stores, hospitals, substations, water works and fuel stations at risk, with physical / connectivity / time-to-impact reasons, suggested protection measures and safer storage to move stock to. |
+| **Action tracker** | Approved actions become tasks with department, due time (from the phase and expected impact) and status — pending, in progress, completed, blocked (with the reason). Overdue and blocked work is highlighted across districts. |
 
 ## Live verification (31 Oct 2026)
 
@@ -216,7 +221,7 @@ The image builds the dashboard, installs PDF fonts (incl. Noto Sans Tamil) and T
 cd backend && python -m pytest -q -m "not live"
 ```
 
-88 tests: unit tests for every pure function (rolling accumulation, probability incl. the spec's 38/51 worked example, t\*, onset, level rules, +1 escalation cap, disagreement, hysteresis by model run, SMS segment counting, probability wording, CAP builder + XSD, verbatim-citation checker, number/facility/phase checks, chunker, SACHET parsing, replay no-look-ahead) and integration tests that drive a **full scan** and a **full agent run** (with a scripted LLM double) through mocked HTTP — covering trigger dedupe, stand-down, ECMWF→GFS fallback, all-sources-down, official floors, VERIFY rejection and retry, the approval gate, CAP validity, the audit log, replay without look-ahead, officer stand-down → CAP Cancel, and garbage input (AC-14).
+105 tests: unit tests for every pure function (rolling accumulation, probability incl. the spec's 38/51 worked example, t\*, onset, level rules, +1 escalation cap, disagreement, hysteresis by model run, SMS segment counting, probability wording, CAP builder + XSD, verbatim-citation checker, number/facility/phase checks, chunker, SACHET parsing, replay no-look-ahead) and integration tests that drive a **full scan** and a **full agent run** (with a scripted LLM double) through mocked HTTP — covering trigger dedupe, stand-down, ECMWF→GFS fallback, all-sources-down, official floors, VERIFY rejection and retry, the approval gate, CAP validity, the audit log, replay without look-ahead, officer stand-down → CAP Cancel, and garbage input (AC-14).
 
 ```bash
 python -m pytest -q -m live tests/integration/test_live_sources.py
@@ -249,6 +254,10 @@ Live checks against the real Open-Meteo and SACHET endpoints (skip automatically
 | POST | `/api/ask` | Plan Q&A with verified citations |
 | GET · POST | `/api/replay/events` · `/api/replay` · `/api/replay/{id}` | Replay |
 | GET | `/api/audit` | Append-only audit log |
+| GET | `/api/districts/{id}/plan-data?kind=&q=` · `/plan-gaps` · `/api/plans/{doc}/pages/{page}` | Structured plan records, gaps, page text |
+| GET | `/api/districts/{id}/impact` · `/assets` (`?refresh=true`) | Local impact areas; critical assets at risk |
+| GET · POST · PATCH | `/api/runs/{id}/readiness` · `/api/readiness/{id}` | Readiness per action; officer confirmation |
+| GET · PATCH | `/api/tasks?district_id=&status=&department=` · `/api/tasks/{id}` | Action tracker |
 
 All errors share one shape: `{ "error": { "code", "message", "source", "retryable" } }`.
 

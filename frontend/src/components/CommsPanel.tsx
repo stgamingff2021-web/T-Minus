@@ -100,7 +100,7 @@ export function CommsPanel({ run, onReload }: { run: any; onReload: () => void }
         <a className="btn sm ghost" href={apiUrl(`/api/runs/${run.run.id}/briefing.html`)} target="_blank" rel="noreferrer">HTML</a>
       </div>
       {!by.public_en && (
-        <div className="banner info small">{run.plan?.no_public_message_reason || (run.run.status === "running" ? "Drafting…" : "No public message was drafted for this run.")}</div>
+        <div className="banner info small">{run.plan?.no_public_message_reason || (run.run.status === "running" ? "Drafting…" : "No public message")}</div>
       )}
       {by.public_en && (
         <>
@@ -121,7 +121,7 @@ export function CommsPanel({ run, onReload }: { run: any; onReload: () => void }
           )}
           <div className="row">
             {published ? (
-              <span className="banner ok small grow"><CheckCircle2 size={14} /> Published to the T-Minus public page (exercise) {run.published?.[0] ? `· ${run.published[0].msg_type}` : ""}</span>
+              <span className="banner ok small grow"><CheckCircle2 size={14} /> Published (exercise) {run.published?.[0] ? `· ${run.published[0].msg_type}` : ""}</span>
             ) : (
               <button className="btn primary grow" onClick={openConfirm} disabled={busy || !by.cap} style={{ justifyContent: "center" }}>
                 {busy ? <Loader2 size={14} className="spin" /> : <Megaphone size={14} />} Approve &amp; publish…
@@ -136,7 +136,6 @@ export function CommsPanel({ run, onReload }: { run: any; onReload: () => void }
           <div className="card tight" style={{ background: "var(--panel2)" }}><div className="tiny faint">English</div>{confirm.will_publish.public_en}</div>
           <div className="card tight ta" style={{ background: "var(--panel2)" }}><div className="tiny faint">Tamil</div>{confirm.will_publish.public_ta}</div>
           {!confirm.valid && <div className="banner danger small">Fix first: {confirm.problems.join(" · ")}</div>}
-          <div className="tiny muted">A CAP 1.2 message is rebuilt from exactly this text and validated against the OASIS XSD. Your approval is written to the audit log.</div>
         </ConfirmDialog>
       )}
     </div>

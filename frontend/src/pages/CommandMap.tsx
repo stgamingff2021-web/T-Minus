@@ -78,17 +78,17 @@ export default function CommandMap() {
           )}
           {!loading && !ls && (
             <div className="banner warn">
-              <CloudOff size={18} /> No successful scan yet. Live forecasts appear after the first scan — nothing is shown until real data arrives.
+              <CloudOff size={18} /> No scan yet
             </div>
           )}
           {ls && ls.status === "failed" && (
             <div className="banner danger">
               <AlertTriangle size={18} />
-              <span>Last scan could not reach the live forecast sources ({Object.entries(ls.summary?.errors || {}).filter(([, v]) => v && (typeof v !== "object" || Object.keys(v as any).length)).map(([k]) => k).join(", ") || "see Sources"}). {districts.some((d) => d.rain) ? "Showing the last real readings, marked STALE." : "No value is shown until real data arrives."} <a href="/sources">Sources →</a></span>
+              <span>Last scan failed ({Object.entries(ls.summary?.errors || {}).filter(([, v]) => v && (typeof v !== "object" || Object.keys(v as any).length)).map(([k]) => k).join(", ") || "sources"}){districts.some((d) => d.rain) ? " · showing last readings" : ""} · <a href="/sources">Sources</a></span>
             </div>
           )}
-          {staleCount > 0 && <div className="banner warn"><AlertTriangle size={18} /> {staleCount} district(s) STALE — their ensemble data could not be refreshed. No new triggers on stale data.</div>}
-          {disagree > 0 && <div className="banner warn"><ShieldAlert size={18} /> {t("disagree")} in {disagree} district(s) — the more cautious level is shown.</div>}
+          {staleCount > 0 && <div className="banner warn"><AlertTriangle size={18} /> {staleCount} district(s) stale</div>}
+          {disagree > 0 && <div className="banner warn"><ShieldAlert size={18} /> {t("disagree")} · {disagree} district(s)</div>}
         </div>
         <div className="legend small">
           {(["ACT", "PREPARE", "WATCH", "QUIET"] as const).map((l) => <LevelBadge key={l} level={l} />)}

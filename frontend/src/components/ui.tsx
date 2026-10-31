@@ -118,7 +118,7 @@ export function ErrorBox({ error, what }: { error: Error | null; what: string })
       <AlertTriangle size={16} />
       <div>
         <div>Could not load {what}.</div>
-        <div className="small muted">{error.message} — the last real data stays on screen; retrying automatically.</div>
+        <div className="small muted">{error.message}</div>
       </div>
     </div>
   );
@@ -149,10 +149,6 @@ export function LoginModal() {
       onClose={() => setLoginOpen(false)}
       footer={<button className="btn primary" onClick={submit} disabled={busy || !name || !pass}>{busy && <Loader2 size={14} className="spin" />} Sign in</button>}
     >
-      <p className="small muted" style={{ margin: 0 }}>
-        Officer actions (run planner, approve, edit, publish, upload plans) need a login. Only a display name and role are
-        stored — no personal data.
-      </p>
       <label className="field">Display name<input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. EOC duty officer" autoFocus /></label>
       <label className="field">Passcode<input className="input" type="password" value={pass} onChange={(e) => setPass(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} /></label>
       {err && <div className="banner danger small">{err}</div>}
