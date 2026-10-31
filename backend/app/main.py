@@ -16,7 +16,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app import errors, notify, scheduler
-from app.api import districts, plandb, plans, replay, runs, system
+from app.api import districts, execution, plandb, plans, replay, runs, system
 from app.config import get_config, get_settings
 from app.db.session import init_db
 from app.sources import registry
@@ -77,7 +77,7 @@ def create_app() -> FastAPI:
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         return response
 
-    for r in (system.router, districts.router, runs.router, plans.router, replay.router, plandb.router):
+    for r in (system.router, districts.router, runs.router, plans.router, replay.router, plandb.router, execution.router):
         app.include_router(r)
 
     dist: Path = settings.frontend_dist

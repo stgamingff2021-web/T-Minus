@@ -117,6 +117,12 @@ async def execute_run(run_id: str, llm=None) -> None:
         final = {**state, "status": "failed", "errors": [str(exc)]}
     try:
         persist(run_id, ctx, final)
+        try:
+            from app.readiness import assess_run
+
+            assess_run(run_id)
+        except Exception:  # noqa: BLE001 - readiness is advisory; the plan is stored either way
+            log.exception("readiness for run %s failed", run_id)
     except Exception as exc:  # noqa: BLE001
         log.exception("persisting run %s failed", run_id)
         with session_scope() as s:

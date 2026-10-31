@@ -91,7 +91,8 @@ def normalise_elements(payload: dict) -> list[dict]:
             "lat": float(lat),
             "lon": float(lon),
             "tags": {k: tags[k] for k in ("amenity", "healthcare", "emergency", "operator", "addr:full",
-                                          "addr:street", "beds", "capacity", "shelter_type") if k in tags},
+                                          "addr:street", "beds", "capacity", "shelter_type", "generator:source", "backup_generator",
+                                          "power_supply", "emergency_power") if k in tags},
         })
     return out
 

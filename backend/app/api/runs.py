@@ -201,6 +201,9 @@ def decide_action(action_id: str, body: ActionDecision, user: User = Depends(cur
             a.status, a.edited_text = "proposed", None
         s.add(Approval(target_type="action", target_id=a.id, decision=body.decision, before=before,
                        after=a.edited_text or a.action, user=user.name, role=user.role, note=body.note))
+        from app import tracker
+
+        tracker.on_decision(s, a, body.decision, user.name)
         return _action_dict(a)
 
 

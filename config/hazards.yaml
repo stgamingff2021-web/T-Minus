@@ -113,3 +113,25 @@ agent:
   retrieval_strong_cosine_tfidf: 0.28
   # Radius (m) of the small avoid-polygon drawn around each geocoded at-risk place.
   at_risk_buffer_m: 400
+
+# ---------------------------------------------------------------------------------------------
+# Feature 6 — action tracker. Due times come from the action's phase and the expected impact
+# time (t*) of the run that proposed it; "Do now" is due a fixed time after approval.
+tracker:
+  do_now_due_h: 2
+  phase_offsets_h: {"T-48h": 48, "T-24h": 24, "T-6h": 6}
+
+# Feature 3 — action readiness. An action's needs are detected from these keywords (matched at
+# word starts, case-insensitive). Plan figures older than plan_max_age_years count as unverified.
+readiness:
+  plan_max_age_years: 1
+  requirements:
+    shelter: [relief camp, relief cent, shelter, evacuat, accommodat, safe place]
+    transport: [vehicle, bus, buses, transport, lorr, truck, tractor, shift]
+    rescue_equipment: [boat, rescue, life jacket, lifebuoy, life buoy, OBM, swimmer]
+    earth_moving: [JCB, earth mover, tree cutt, fallen tree, power saw, debris, clear road, clearance]
+    pumping: [pump, dewater, water logging, waterlogging, stagnat, inundat, drain]
+    staff: [deploy, team, staff, personnel, volunteer, task force, QRT, officer]
+    road_access: [road, route, access, reach, evacuat, transport]
+    backup_power: [generator, backup power, power backup, power supply, diesel, electricity]
+    medical: [hospital, medical, ambulance, health, medicine, PHC, doctor]
