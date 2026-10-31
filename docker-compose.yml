@@ -1,0 +1,22 @@
+# Local run:  cp .env.example .env  (fill in values)  &&  docker compose up --build
+services:
+  app:
+    build: .
+    ports: ["8000:8000"]
+    env_file: .env
+    environment:
+      DATA_DIR: /data
+      DATABASE_URL: ${DATABASE_URL:-sqlite:////data/tminus.db}
+    volumes: ["tminus-data:/data"]
+    restart: unless-stopped
+
+  # Optional Postgres (set DATABASE_URL=postgresql+psycopg://tminus:tminus@db:5432/tminus and run with --profile postgres)
+  db:
+    image: postgres:16-alpine
+    profiles: ["postgres"]
+    environment: { POSTGRES_USER: tminus, POSTGRES_PASSWORD: tminus, POSTGRES_DB: tminus }
+    volumes: ["pg-data:/var/lib/postgresql/data"]
+
+volumes:
+  tminus-data:
+  pg-data:

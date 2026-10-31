@@ -103,7 +103,8 @@ def chunk_pages(pages: list[tuple[int, str]], max_chars: int = 1400, min_chars: 
             body = "\n".join(lines).strip()
             if not body:
                 continue
-            if merged and len(body) < min_chars * 3 and len(merged[-1][1]) + len(body) < max_chars:
+            if (merged and merged[-1][0] == sec and len(body) < min_chars * 3
+                    and len(merged[-1][1]) + len(body) < max_chars):
                 merged[-1] = (merged[-1][0], merged[-1][1] + "\n" + body)
             else:
                 merged.append((sec, body))
