@@ -311,12 +311,12 @@ async def node_gather(state: AgentState, config) -> dict:
                 note = "Tool budget exhausted."
                 ctx.emit("retry", {"kind": "budget", "message": f"Tool budget of {ctx.tools.max_calls} calls reached; moving to PLAN."})
                 break
-            if ctx.time_left() < 60:
-                note = "Stopped gathering to stay within the soft timeout."
+            if ctx.elapsed() > ctx.soft_timeout_s * 0.5:
+                note = "Stopped gathering at half the soft timeout to leave time for planning and verification."
                 ctx.emit("retry", {"kind": "timeout", "message": note})
                 break
             res = await ctx.llm.chat(system=prompts.GATHER.format(remaining=remaining), messages=messages,
-                                     tools=claude_tools(GATHER_TOOLS), max_tokens=8000)
+                                     tools=claude_tools(GATHER_TOOLS), max_tokens=8000, effort="medium")
             ctx.account(res)
             messages.append({"role": "assistant", "content": res.content})
             if res.stop_reason == "pause_turn":
@@ -398,7 +398,7 @@ async def node_verify(state: AgentState, config) -> dict:
     ctx.emit("verify", report.as_dict())
     critic = None
     feedback = report.feedback() if not report.passed else None
-    if report.passed and ctx.llm is not None and ctx.time_left() > 25:
+    if report.passed and ctx.llm is not None and ctx.elapsed() < ctx.soft_timeout_s:
         try:
             res = await ctx.llm.chat(
                 system=prompts.CRITIC,
@@ -426,11 +426,11 @@ def route_after_verify(state: AgentState, config) -> str:
     if state.get("status") == "failed":
         return "partial"
     if rep.get("passed"):
-        if critic.get("verdict") == "revise" and attempt < ctx.max_attempts and ctx.time_left() > 45:
+        if critic.get("verdict") == "revise" and attempt < ctx.max_attempts and ctx.elapsed() < ctx.soft_timeout_s:
             ctx.emit("retry", {"kind": "critic", "attempt": attempt + 1, "message": state.get("plan_feedback")})
             return "plan"
         return "communicate"
-    if attempt < ctx.max_attempts and ctx.time_left() > 30:
+    if attempt < ctx.max_attempts and ctx.elapsed() < ctx.soft_timeout_s * 2:
         ctx.emit("retry", {"kind": "verify", "attempt": attempt + 1, "message": state.get("plan_feedback")})
         return "plan"
     return "partial"

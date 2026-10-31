@@ -191,7 +191,7 @@ h3 { font-size: 14px; }
 .banner.info { border-color: color-mix(in srgb, var(--accent) 45%, transparent); background: color-mix(in srgb, var(--accent) 8%, var(--panel)); }
 .banner.replay {
   border-color: var(--violet); background: repeating-linear-gradient(45deg, color-mix(in srgb, var(--violet) 14%, var(--panel)) 0 14px, color-mix(in srgb, var(--violet) 8%, var(--panel)) 14px 28px);
-  font-family: var(--mono); letter-spacing: 0.06em; position: sticky; top: 49px; z-index: 20;
+  font-family: var(--mono); letter-spacing: 0.06em; position: sticky; top: 0; z-index: 20;
 }
 
 /* ---------- command map ---------- */

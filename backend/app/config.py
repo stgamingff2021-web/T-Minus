@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     llm_model: str = "claude-opus-5-5"
     llm_backup_model: str = "claude-sonnet-5-5"
     llm_effort: str = "high"
-    llm_timeout_s: float = 90.0
+    llm_timeout_s: float = 180.0
 
     # --- embeddings ---
     embedding_backend: str = "auto"      # auto | fastembed | tfidf

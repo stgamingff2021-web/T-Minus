@@ -33,6 +33,7 @@ Where the specification left a detail open, the implementation made the assumpti
 | B-07 | Public messages drafted by the agent that contain numbers not present in the evidence (e.g. "2 days" derived from 48 h) are stored as invalid and cannot be published until an officer edits them. |
 | B-08 | The agent auto-runs for triggers that open/escalate at or above `AUTO_PLAN_MIN_LEVEL` (default PREPARE) to bound LLM cost; WATCH districts can be planned on demand. |
 | B-09 | LLM: Claude through the official Anthropic SDK (`claude-opus-5-5`, adaptive thinking, structured outputs, server-side refusal fallbacks) with `claude-sonnet-5-5` as the backup model behind one provider-agnostic interface (`app/agent/llm.py`). A second provider can be added by implementing `LLMClient`. |
+| B-11 | The 120 s budget is treated as a *soft* timeout: GATHER stops at half of it, the optional LLM critic runs only inside it, and required PLAN retries may continue up to 2× the soft timeout so a verifier rejection still gets its retry. Each LLM call has its own 180 s timeout. |
 | B-10 | Without fastembed's local model the vector half of hybrid search uses character n-gram TF-IDF; the active backend is reported in every retrieval result and in the plan warnings. |
 
 ## Communications and safety
