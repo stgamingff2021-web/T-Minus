@@ -25,4 +25,6 @@ Starting values from `config/hazards.yaml` (`antecedent_rain_72h_mm = 100`, `pro
 
 | Date | Event | WATCH lead | PREPARE lead | ACT lead | Quiet-period false alarm | Change |
 |---|---|---|---|---|---|---|
-| | | | | | | |
+| 2026-10-31 | Cyclone Fengal — Viluppuram (8 archived global models, as issued; ERA5 peak 394.7 mm/24 h ending 2024-12-01 12:00 UTC) | 48 h | **30 h** | 24 h | none (1–9 Oct 2024, observed max 11.9 mm/24 h) | none — starting values kept |
+
+Fengal — Puducherry and Michaung — Chennai could not be replayed from the build environment (Open-Meteo daily limit on the shared IP); run them from the deployment.

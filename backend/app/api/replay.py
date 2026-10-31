@@ -35,7 +35,7 @@ class ReplayBody(BaseModel):
 
 
 @router.post("/replay", status_code=202, dependencies=[Depends(limit(capacity=4, refill_per_s=1 / 60))])
-def start_replay(body: ReplayBody):
+async def start_replay(body: ReplayBody):
     if not any(e["key"] == body.event_key for e in get_config().replay.get("events", [])):
         raise APIError(404, "unknown_event", f"Unknown replay event '{body.event_key}'.")
     return {"replay_id": runner.start(body.event_key)}

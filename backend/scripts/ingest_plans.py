@@ -27,14 +27,15 @@ def download(url: str) -> bytes:
     with httpx.Client(headers={"User-Agent": s.user_agent}, follow_redirects=True, timeout=180) as c:
         r = c.get(url)
         r.raise_for_status()
-        if len(r.content) > s.max_upload_mb * 1024 * 1024:
-            raise IngestError("file_too_large", f"{url} exceeds {s.max_upload_mb} MB")
+        if len(r.content) > s.max_ingest_mb * 1024 * 1024:
+            raise IngestError("file_too_large", f"{url} exceeds {s.max_ingest_mb} MB")
         return r.content
 
 
 def ingest_one(data: bytes, *, title: str, kind: str, district: str | None, url: str | None, year: int | None) -> None:
     res = ingest_pdf(data, title=title, kind=kind, district_id=district if kind != "generic" else None,
-                     source_url=url, edition_year=year, ingested_by="ingest_plans script")
+                     source_url=url, edition_year=year, ingested_by="ingest_plans script",
+                     limit_mb=get_settings().max_ingest_mb)
     if res.get("duplicate"):
         print(f"  = already ingested ({res['document_id']})")
     else:

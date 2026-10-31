@@ -99,10 +99,17 @@ agent:
   max_plan_attempts: 3               # initial + 2 retries
   soft_timeout_s: 120
   retrieval_k: 6
-  # Hybrid retrieval gate (starting values): a chunk is "found" if it covers this
-  # share of the query's content words OR its vector similarity reaches min_cosine.
-  retrieval_min_coverage: 0.34
+  # Hybrid retrieval relevance gate (starting values, calibrated 2026-10-31 on the real
+  # GCC Chennai CDMP 2025 and Puducherry DM Action Plan 2023). A chunk is "found" if
+  #   (coverage >= min_coverage AND cosine >= min_cosine)   moderate keywords + some similarity
+  #   OR coverage >= strong_coverage                         most query words present
+  #   OR cosine >= strong_cosine                             strong similarity alone
+  # otherwise retrieve_plan answers not_found ("Not found in district plan").
+  retrieval_min_coverage: 0.5
   retrieval_min_cosine: 0.45
-  retrieval_min_cosine_tfidf: 0.12
+  retrieval_min_cosine_tfidf: 0.15
+  retrieval_strong_coverage: 0.75
+  retrieval_strong_cosine: 0.6
+  retrieval_strong_cosine_tfidf: 0.28
   # Radius (m) of the small avoid-polygon drawn around each geocoded at-risk place.
   at_risk_buffer_m: 400

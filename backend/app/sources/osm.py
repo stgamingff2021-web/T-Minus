@@ -13,7 +13,7 @@ import time
 from typing import Any
 
 from app.config import get_settings
-from app.sources.base import FetchResult, fetch
+from app.sources.base import FetchResult, SourceError, fetch
 
 FACILITY_TYPES = ("hospital", "school", "shelter", "community_centre", "fire_station", "police", "clinic")
 
@@ -102,11 +102,25 @@ def _validate_overpass(p: Any) -> None:
 
 
 async def fetch_facilities(types: list[str], *, bbox=None, around=None) -> tuple[FetchResult, list[dict]]:
+    """Query Overpass, failing over across public mirrors (each attempt is logged)."""
     s = get_settings()
     q = build_overpass_query(types, bbox=bbox, around=around)
-    res = await fetch("overpass", s.overpass_url, method="POST", data={"data": q}, validate=_validate_overpass,
-                      timeout_s=90, log_params={"query": q})
-    return res, normalise_elements(res.payload)
+    urls = [s.overpass_url] + [u.strip() for u in s.overpass_mirrors.split(",") if u.strip()]
+    last: SourceError | None = None
+    deadline = time.monotonic() + 40  # total budget across mirrors
+    for url in urls:
+        left = deadline - time.monotonic()
+        if left < 5:
+            break
+        try:
+            res = await fetch("overpass", url, method="POST", data={"data": q}, validate=_validate_overpass,
+                              timeout_s=min(20.0, left), attempts=1, log_params={"query": q, "endpoint": url})
+            return res, normalise_elements(res.payload)
+        except SourceError as exc:
+            last = exc
+            if exc.simulated:
+                break
+    raise last or SourceError("overpass", "no Overpass endpoint configured")
 
 
 # ---------------------------------------------------------------------------

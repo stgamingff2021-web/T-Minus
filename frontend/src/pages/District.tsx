@@ -255,7 +255,8 @@ export default function District() {
           <div className="grid two">
             {(data.river.points || []).map((p: any) => (
               <div key={p.point_id}>
-                <div className="row small"><b>{p.river}</b> {p.level ? <LevelBadge level={p.level} /> : <span className="faint">below WATCH</span>} <span className="tiny muted right">{p.baseline ? `baseline ${p.baseline.period} · ${p.baseline.n_days} days` : p.note}</span></div>
+                <div className="row small"><b>{p.river}</b>{p.also_represents?.length ? <span className="tiny muted">(same GloFAS cell as {p.also_represents.join(", ")})</span> : null} {p.level ? <LevelBadge level={p.level} /> : <span className="faint">below WATCH</span>} <span className="tiny muted right">{p.baseline ? `cell ${p.lat.toFixed(3)}, ${p.lon.toFixed(3)} · baseline ${p.baseline.period} · ${p.baseline.n_days} days` : p.note}</span></div>
+                {p.rules && <div className="tiny muted">{Object.entries(p.rules).map(([lv, r]: any) => `${lv}: ${r.statistic.replace("ensemble_", "")} peak ${r.peak_m3s} vs P${r.percentile} ${r.threshold_m3s} m³/s ${r.exceeds ? "✓" : "—"}`).join(" · ")}</div>}
                 <RiverChart chart={p.chart} p95={p.baseline?.p95} p99={p.baseline?.p99} />
               </div>
             ))}

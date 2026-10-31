@@ -28,8 +28,8 @@ Team names · Forge Gen AI Buildathon · Theme 2
 
 ## Slide 5 — Results
 * Live: **[N]** districts scanned in **[s]** s; current levels **[from command map]**
-* Replay, Cyclone Fengal (as-issued forecasts): PREPARE would have fired **[N] h** before peak rain; quiet-period false alarms: **[none / list]**
-* 75 automated tests incl. VERIFY rejection/retry, approval gate, CAP XSD validity
+* Replay, Cyclone Fengal — Viluppuram (forecasts as issued by 8 global models): **PREPARE would have fired 30 h before the 394.7 mm/24 h peak** (WATCH 48 h, ACT 24 h); quiet-period false alarms: **none** — measured 2026-10-31, see `docs/evidence/03-replay-fengal-live.png`
+* 76 automated tests incl. VERIFY rejection/retry, approval gate, CAP XSD validity
 
 ## Slide 6 — Roadmap and ask
 * Humid-heat (WBGT) plug-in on the same engine → heat action plans
@@ -50,7 +50,7 @@ Team names · Forge Gen AI Buildathon · Theme 2
 | 1:25 | Action timeline → open a citation | "Every action cites the page it came from. If it isn't in the plan, it says so." |
 | 1:50 | Edit + approve; Tamil message counters; CAP XSD badge; Approve & publish dialog | "Nothing leaves without an officer's approval — in Tamil and English, in the national alert standard." |
 | 2:10 | Sources → chaos switch on ECMWF → Scan now | "Watch what happens when a data source dies." (GFS fallback, simulated outage label) |
-| 2:25 | Replay → Fengal | "On a real past cyclone, using only forecasts that existed at the time, T-Minus would have fired PREPARE **[N]** hours before peak rain." |
+| 2:25 | Replay → Fengal | "On a real past cyclone, using only forecasts that existed at the time, T-Minus would have fired PREPARE **30** hours before peak rain." (re-check the Replay page on the day) |
 | 2:45 | Close | "India forecasts well. T-Minus turns forecasts into action." |
 
 ### Live judging checklist

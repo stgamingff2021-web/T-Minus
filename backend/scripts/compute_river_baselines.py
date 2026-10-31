@@ -14,7 +14,7 @@ from app.sources.base import close_client
 
 async def run() -> dict:
     try:
-        return await ensure_river_baselines()
+        return await ensure_river_baselines(wait_on_minutely=True)
     finally:
         await close_client()
 

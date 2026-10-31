@@ -51,7 +51,7 @@ from app.sources.open_meteo import (
     fetch_model_run_time,
     fetch_past_rain,
 )
-from app.sources.sachet import OfficialAlert, district_alerts, fetch_alerts, strongest_color
+from app.sources.sachet import OfficialAlert, district_alerts, district_info_alerts, fetch_alerts, strongest_color
 from app.triggers.escalation import resolve_level
 from app.triggers.levels import max_level, rank
 from app.triggers.lifecycle import Observation, TriggerSnapshot, same_event, step
@@ -197,8 +197,69 @@ def _baselines() -> dict[str, RiverBaseline]:
         return {b.point_id: b for b in s.execute(select(RiverBaseline)).scalars()}
 
 
-async def ensure_river_baselines(limit: int | None = None) -> dict[str, Any]:
-    """Fetch GloFAS reanalysis once per river point and store P95/P99 with provenance (§6.4)."""
+async def snap_to_river(lat: float, lon: float) -> tuple[float, float, float] | None:
+    """Snap a configured river point to the GloFAS cell with the largest flow nearby.
+
+    Configured coordinates are approximate; on a ~5 km grid the nearest cell can be a
+    tributary or floodplain cell with almost no flow (seen live: 0.4 m3/s next to the
+    Cauvery). We sample the 3x3 neighbourhood (+/-0.05 deg), widening to +/-0.1 deg if
+    every cell is null, and keep the cell with the highest mean forecast discharge.
+    Returns (cell_lat, cell_lon, mean_m3s) or None when no modelled river is found.
+    """
+    for span in (0.05, 0.1):
+        offs = [round(-span + i * 0.05, 3) for i in range(int(round(2 * span / 0.05)) + 1)]
+        cands = [(round(lat + dy, 4), round(lon + dx, 4)) for dy in offs for dx in offs]
+        _, fps = await fetch_flood_forecast(cands)  # SourceError propagates: a failed call is NOT "no river"
+        best = None
+        for fp in fps:
+            series = fp.series.get("river_discharge_median")
+            if series is None or np.all(np.isnan(series)):
+                series = fp.series.get("river_discharge")
+            if series is None or np.all(np.isnan(series)):
+                continue
+            mean = float(np.nanmean(series))
+            if best is None or mean > best[2]:
+                best = (fp.lat, fp.lon, mean)
+        if best is not None:
+            return best
+    return None
+
+
+_baseline_state: dict[str, Any] = {"running": False, "rate_limited_until": 0.0}
+
+
+async def ensure_river_baselines(limit: int | None = None, wait_on_minutely: bool = False) -> dict[str, Any]:
+    """Fetch GloFAS reanalysis once per river point and store P95/P99 with provenance (§6.4).
+
+    Open-Meteo counts a multi-decade daily request as many API calls, so this job is
+    rate-limit aware: on a per-minute limit it waits (script mode) or stops until a later
+    scan; on a daily limit it stops. A rate-limited call never marks a point "not on a
+    modelled river".
+    """
+    if _baseline_state["running"] or time.time() < _baseline_state["rate_limited_until"]:
+        return {"computed": [], "failed": [], "skipped": "baseline job already running or rate-limited"}
+    _baseline_state["running"] = True
+    try:
+        return await _ensure_river_baselines(limit, wait_on_minutely)
+    finally:
+        _baseline_state["running"] = False
+
+
+async def _with_rate_limit(call, wait_on_minutely: bool):
+    try:
+        return await call()
+    except SourceError as exc:
+        if exc.code != "rate_limited":
+            raise
+        daily = "daily" in exc.message.lower()
+        if wait_on_minutely and not daily:
+            await asyncio.sleep(62)
+            return await call()
+        _baseline_state["rate_limited_until"] = time.time() + (3600 if daily else 120)
+        raise
+
+
+async def _ensure_river_baselines(limit: int | None, wait_on_minutely: bool) -> dict[str, Any]:
     cfg = get_config().hazards["river"]["baseline"]
     done, failed = [], []
     have = _baselines()
@@ -206,12 +267,36 @@ async def ensure_river_baselines(limit: int | None = None) -> dict[str, Any]:
     if limit is not None:
         todo = todo[:limit]
     for mp in todo:
+        if mp.effective_lat is None:
+            try:
+                snapped = await _with_rate_limit(lambda: snap_to_river(mp.lat, mp.lon), wait_on_minutely)
+            except SourceError as exc:
+                failed.append({"point": mp.id, "error": exc.message[:200], "retry_later": True})
+                if exc.code == "rate_limited":
+                    break
+                continue
+            with session_scope() as s:
+                row = s.get(MonitorPoint, mp.id)
+                if snapped is None:
+                    row.on_modelled_river = False
+                else:
+                    row.effective_lat, row.effective_lon, row.on_modelled_river = snapped[0], snapped[1], True
+            if snapped is None:
+                failed.append({"point": mp.id, "error": "not on a modelled river (no GloFAS discharge within 0.1 deg)"})
+                continue
+            mp.effective_lat, mp.effective_lon = snapped[0], snapped[1]
         lat, lon = (mp.effective_lat or mp.lat), (mp.effective_lon or mp.lon)
         try:
-            res, fp = await fetch_flood_reanalysis(lat, lon, cfg["start"], cfg["end"])
+            res, fp = await _with_rate_limit(lambda: fetch_flood_reanalysis(lat, lon, cfg["start"], cfg["end"]),
+                                             wait_on_minutely)
             p95, p99, n = percentiles(fp.series["river_discharge"])
-        except (SourceError, ValueError) as exc:
-            failed.append({"point": mp.id, "error": getattr(exc, "message", str(exc))})
+        except SourceError as exc:
+            failed.append({"point": mp.id, "error": exc.message[:200], "retry_later": True})
+            if exc.code == "rate_limited":
+                break
+            continue
+        except ValueError as exc:
+            failed.append({"point": mp.id, "error": str(exc)})
             continue
         with session_scope() as s:
             s.merge(RiverBaseline(point_id=mp.id, p95=p95, p99=p99, n_days=n, period_start=cfg["start"],
@@ -237,6 +322,11 @@ async def _fetch_river(now: float) -> tuple[dict[str, list[dict]], str | None]:
             err = exc.message
             continue
         for mp, fp in zip(batch, fps):
+            cell = (round(fp.lat, 3), round(fp.lon, 3))
+            dup = next((e for e in out.get(mp.district_id, []) if (round(e["lat"], 3), round(e["lon"], 3)) == cell), None)
+            if dup is not None:
+                dup["also_represents"] = [*dup.get("also_represents", []), mp.river_name]
+                continue
             if fp.all_null() and mp.effective_lat is None:
                 fp, coords_used = await _nudge(mp, nudge)
                 if fp is None:
@@ -324,6 +414,9 @@ def apply_lifecycle(s, district_id: str, hazard: str, assessment: Assessment, ob
     )
     d = step(snap, obs, runs_required)
     if not d.changes_trigger:
+        if existing is not None and existing.status != "closed" and assessment.t_star is not None:
+            existing.t_star = assessment.t_star  # countdown follows the latest forecast
+            existing.assessment_id = assessment.id
         return None
     if d.action == "open":
         t = Trigger(district_id=district_id, hazard=hazard, level=d.level, status="active",
@@ -443,8 +536,12 @@ async def _scan_body(scan_id: str) -> dict[str, Any]:
                 if river_pts or r_color:
                     rres = resolve_level(river_level, official_color=r_color, floor_cfg=floor_cfg,
                                          official_available=alerts_ok, max_escalation=0)
+                    first_times = [r.get("first_exceed_time") for p in river_pts if p.get("level") == river_level
+                                   for lv, r in (p.get("rules") or {}).items() if lv == river_level and r.get("first_exceed_time")]
+                    r_tstar = _ts(min(first_times)) if first_times else None
                     ra = Assessment(
                         district_id=d.id, hazard="river", data_time=now_dt, model="glofas_v4",
+                        t_star=r_tstar, t_minus_h=round((r_tstar - now_dt).total_seconds() / 3600, 1) if r_tstar else None,
                         level=rres.level, base_level=river_level, hysteresis_level=rres.level,
                         flags={**rres.as_dict(), "official_alerts": [a.as_dict() for a in river_alerts]},
                         details={"points": river_pts,
@@ -456,13 +553,14 @@ async def _scan_body(scan_id: str) -> dict[str, Any]:
                     s.flush()
                     ev = apply_lifecycle(s, d.id, "river", ra, Observation(
                         level=rres.level, hysteresis_level=rres.level, model_run_id=ra.model_run_id,
-                        window_start=now_dt, window_end=now_dt + dt.timedelta(days=7), can_open=True))
+                        window_start=r_tstar or now_dt, window_end=(r_tstar or now_dt) + dt.timedelta(days=7), can_open=True))
                     if ev:
                         events.append(ev)
 
                 # ---------- rain ----------
                 r = rain.get(d.id)
                 rain_alerts = district_alerts(alerts, d, state_name, "rain", now_dt) if alerts_ok else []
+                rain_info = district_info_alerts(alerts, d, state_name, "rain", now_dt) if alerts_ok else []
                 color = strongest_color(rain_alerts)
                 ant = ante.get(d.id) or {}
                 saturated = ant.get("mm_72h") is not None and ant["mm_72h"] >= sat_mm
@@ -512,6 +610,7 @@ async def _scan_body(scan_id: str) -> dict[str, Any]:
                     "river_level": river_level,
                     "antecedent": ant or None,
                     "official_alerts": [a.as_dict() for a in rain_alerts],
+                    "official_info": [a.as_dict() for a in rain_info],
                     "official_alerts_error": None if alerts_ok else alerts_state.get("error"),
                     "official_fetch_id": alerts_state.get("fetch_id"),
                     "ensemble_unavailable": r is None,

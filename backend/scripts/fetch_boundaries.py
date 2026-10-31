@@ -1,10 +1,13 @@
 """Download district boundaries from a published source and record provenance (spec §5.3).
 
-Sources, in order:
+Sources, in order (``--source auto``):
   1. OpenStreetMap via Overpass (ODbL) — admin_level=5 district relations inside each
      configured state (ISO 3166-2 code), assembled into polygons with shapely.
-  2. geoBoundaries gbOpen IND ADM2 (fallback) — the API returns the download URL and
-     the licence for the current release.
+  2. OpenStreetMap via Nominatim (ODbL) — the same district relations returned as
+     simplified GeoJSON (``polygon_geojson``), queried politely at 1 request/s with name
+     and alias variants; a polygon is accepted only if it contains the district HQ.
+  3. geoBoundaries gbOpen IND ADM2 — the API returns the download URL and licence of
+     the current release (hosted on GitHub LFS).
 
 Writes data/boundaries/districts.geojson (properties.district_id matches
 config/districts.yaml) and data/boundaries/PROVENANCE.json. Nothing is invented: a
@@ -104,6 +107,62 @@ def from_osm(client: httpx.Client, url: str) -> tuple[list[dict], list[str]]:
     return feats, notes
 
 
+def from_nominatim(client: httpx.Client, url: str) -> tuple[list[dict], list[str]]:
+    import time
+
+    from shapely.geometry import Point
+
+    cfg = get_config()
+    feats, notes = [], []
+    last = 0.0
+    for d in cfg.districts:
+        state = cfg.state_name(d.state)
+        variants = [f"{d.name} district, {state}", f"{d.name}, {state}"] + \
+                   [f"{a} district, {state}" for a in d.aliases] + [f"{a}, {state}" for a in d.aliases]
+        found = None
+        for qtext in variants[:6]:
+            wait = 1.1 - (time.monotonic() - last)
+            if wait > 0:
+                time.sleep(wait)
+            last = time.monotonic()
+            r = client.get(url, params={"q": qtext, "format": "jsonv2", "polygon_geojson": 1, "polygon_threshold": 0.001,
+                                        "limit": 5, "countrycodes": "in"}, timeout=60)
+            if r.status_code != 200:
+                notes.append(f"{d.id}: HTTP {r.status_code} for {qtext!r}")
+                continue
+            for hit in r.json():
+                if hit.get("category") != "boundary" or hit.get("addresstype") not in ("state_district", "district", "county") \
+                        or int(hit.get("place_rank") or 0) not in (10, 11, 12):
+                    continue
+                g = hit.get("geojson") or {}
+                if g.get("type") not in ("Polygon", "MultiPolygon"):
+                    continue
+                geom = shape(g)
+                geom = geom if geom.is_valid else geom.buffer(0)
+                if not geom.buffer(0.02).contains(Point(d.hq[1], d.hq[0])):
+                    notes.append(f"{d.id}: rejected {hit.get('display_name')!r} (does not contain HQ)")
+                    continue
+                found = (geom, hit)
+                break
+            if found:
+                break
+        if not found:
+            notes.append(f"{d.id}: no state_district boundary found via Nominatim")
+            continue
+        geom, hit = found
+        feats.append({"type": "Feature", "geometry": mapping(geom.simplify(0.0008, preserve_topology=True)),
+                      "properties": {"district_id": d.id, "name": hit.get("name") or d.name,
+                                     "osm_relation": hit.get("osm_id"), "osm_type": hit.get("osm_type")}})
+    return feats, notes
+
+
+def overpass_reachable(client: httpx.Client, url: str) -> bool:
+    try:
+        return client.get(url.replace("/interpreter", "/status"), timeout=10).status_code == 200
+    except httpx.HTTPError:
+        return False
+
+
 def from_geoboundaries(client: httpx.Client) -> tuple[list[dict], list[str], dict]:
     meta = client.get(GEOBOUNDARIES_API, timeout=60).json()
     gj_url = meta.get("simplifiedGeometryGeoJSON") or meta.get("gjDownloadURL")
@@ -123,17 +182,24 @@ def from_geoboundaries(client: httpx.Client) -> tuple[list[dict], list[str], dic
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--source", choices=["osm", "geoboundaries", "auto"], default="auto")
+    ap.add_argument("--source", choices=["osm", "nominatim", "geoboundaries", "auto"], default="auto")
     args = ap.parse_args()
     s = get_settings()
     client = httpx.Client(headers={"User-Agent": s.user_agent})
     feats, notes, prov = [], [], {}
-    if args.source in ("osm", "auto"):
+    if args.source == "osm" or (args.source == "auto" and overpass_reachable(client, s.overpass_url)):
         try:
             feats, notes = from_osm(client, s.overpass_url)
             prov = {"source": "OpenStreetMap (Overpass API)", "url": s.overpass_url, "licence": "ODbL 1.0 — © OpenStreetMap contributors"}
         except Exception as exc:  # noqa: BLE001
             print(f"OSM failed: {exc}", file=sys.stderr)
+    if not feats and args.source in ("nominatim", "auto"):
+        try:
+            feats, notes = from_nominatim(client, s.nominatim_url)
+            prov = {"source": "OpenStreetMap (Nominatim, polygon_geojson)", "url": s.nominatim_url,
+                    "licence": "ODbL 1.0 — © OpenStreetMap contributors"}
+        except Exception as exc:  # noqa: BLE001
+            print(f"Nominatim failed: {exc}", file=sys.stderr)
     if not feats and args.source in ("geoboundaries", "auto"):
         feats, notes, extra = from_geoboundaries(client)
         prov = {"source": "geoBoundaries gbOpen IND ADM2", **extra}

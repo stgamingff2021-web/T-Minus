@@ -1,19 +1,26 @@
 """NDMA SACHET official alerts (CAP over RSS) — spec §5.1, §6.5 step 2.
 
-SACHET distributes CAP alerts from IMD, CWC, INCOIS and SDMAs. The client:
+Verified against the live service (2026-10-31):
 
-1. fetches the configured RSS/Atom feed (``SACHET_FEED_URL``; (verify) the exact
-   state/national feed URL on https://sachet.ndma.gov.in/);
-2. for each item, uses an inline ``<alert>`` if the feed embeds CAP, otherwise fetches
-   the linked CAP XML (bounded, concurrency-limited);
-3. parses CAP 1.x ``info`` blocks: event, severity, urgency, certainty, effective,
-   expires, sender, headline, description, area (areaDesc, polygons);
-4. maps each alert to an official colour (red / orange / yellow) and to the monitored
-   districts it covers (areaDesc name matching + point-in-polygon on the district HQ).
+* Per-state RSS 2.0 feeds exist at ``https://sachet.ndma.gov.in/cap_public_website/rss/<name>.xml``
+  (Tamil Nadu = ``rss_tamil``, Puducherry = ``rss_puducherry``, Kerala = ``rss_kerala``,
+  Andhra Pradesh = ``rss_andhra``, Odisha = ``rss_odisha``, …; see config/districts.yaml).
+  The national feed ``rss_india.xml`` keeps only the latest 100 items of all states, so
+  state feeds are used by default.
+* Each item links to its CAP 1.2 document (``FetchXMLFile?identifier=…``) with ``cap:``
+  prefixed elements, an English info block plus a regional-language block.
+* Polygons are NOT inline: a "Polygon URL" parameter points to a separate file that is
+  behind a web-application firewall (HTTP 403), so district matching uses the
+  ``areaDesc``/headline names (e.g. "Tenkasi, Virudhunagar districts of Tamil Nadu") and
+  the "LGD District Code" parameters are kept for reference.
+* No colour code is published; IMD alerts carry CAP ``severity`` (Moderate / Severe /
+  Extreme). Most items are 1–3 hour nowcasts ("Thunderstorm with Lightning", "Light
+  Rain") that also use Severe/Moderate.
 
-The colour mapping (verify which fields SACHET populates): an explicit colour word in
-the parameters/headline/description wins; otherwise CAP severity Extreme -> red,
-Severe -> orange, Moderate -> yellow. Parsing is defensive — any field may be absent.
+Floor policy (§6.5): only alerts about heavy rainfall, floods or cyclones act as the
+official floor (severity Severe → orange → PREPARE, Extreme → red → ACT; an explicit
+colour word wins). Thunderstorm/lightning and light/moderate-rain nowcasts are shown to
+the officer as information but never raise a flood level on their own.
 """
 from __future__ import annotations
 
@@ -25,15 +32,21 @@ from typing import Any
 
 from lxml import etree
 
-from app.config import DistrictCfg, get_settings
+from app.config import DistrictCfg, get_config, get_settings
 from app.sources.base import SourceError, fetch
 
-CAP_ITEM_LIMIT = 60
+CAP_FETCH_LIMIT = 80
+ITEM_MAX_AGE_DAYS = 7
 COLOR_WORDS = ("red", "orange", "yellow")
 SEVERITY_COLOR = {"extreme": "red", "severe": "orange", "moderate": "yellow"}
-RAIN_WORDS = ("rain", "flood", "cyclone", "depression", "thunderstorm", "storm", "deluge", "inundation", "landslide")
-HEAT_WORDS = ("heat", "hot", "temperature", "warm night")
-RIVER_WORDS = ("flood", "river", "dam", "inundation", "water level")
+HEAVY_RAIN_RE = re.compile(
+    r"heavy\s*rain|heavy\s*rainfall|very\s*heavy|extremely\s*heavy|\bflood|flash\s*flood|cyclon|\bdeep\s*depression|"
+    r"\bdepression\b|inundat|cloud\s*burst|cloudburst|deluge|storm\s*surge", re.I)
+RIVER_RE = re.compile(r"\bflood|\briver\b|\bdam\b|water\s*level|inundat", re.I)
+HEAT_RE = re.compile(r"heat\s*wave|heatwave|\bheat\b|hot\s*(and\s*humid|day|night)|warm\s*night", re.I)
+RAIN_INFO_RE = re.compile(r"\brain|thunder|lightning|storm|shower", re.I)
+
+_cap_cache: dict[str, list] = {}
 
 
 @dataclass
@@ -53,26 +66,38 @@ class OfficialAlert:
     description: str | None
     area_desc: str | None
     polygons: list[list[tuple[float, float]]] = field(default_factory=list)
+    lgd_codes: list[str] = field(default_factory=list)
     link: str | None = None
     language: str | None = None
     summary_only: bool = False
     fetch_id: str | None = None
+    feed: str | None = None
+
+    def _text(self) -> str:
+        return " ".join(filter(None, [self.event, self.headline, self.description]))
 
     def hazards(self) -> set[str]:
-        text = " ".join(filter(None, [self.event, self.headline, self.description])).lower()
+        """Hazards for which this alert may act as the official FLOOR."""
+        text = self._text()
         out = set()
-        if any(w in text for w in RAIN_WORDS):
+        if HEAVY_RAIN_RE.search(text):
             out.add("rain")
-        if any(w in text for w in RIVER_WORDS):
+        is_cwc = "CWC" in (self.agency or "").upper() or "CWC" in (self.sender or "").upper()
+        if (RIVER_RE.search(text) and is_cwc) or re.search(r"\briver\b", text, re.I):
             out.add("river")
-        if any(w in text for w in HEAT_WORDS):
+        if HEAT_RE.search(text):
             out.add("heat")
         return out
 
+    def info_hazards(self) -> set[str]:
+        """Hazards this alert is relevant to as INFORMATION (includes nowcasts)."""
+        out = set(self.hazards())
+        if RAIN_INFO_RE.search(self._text()):
+            out.add("rain")
+        return out
+
     def is_active(self, now: dt.datetime) -> bool:
-        if self.expires and self.expires < now:
-            return False
-        return True
+        return not (self.expires and self.expires < now)
 
     def as_dict(self) -> dict:
         return {
@@ -89,11 +114,14 @@ class OfficialAlert:
             "headline": self.headline,
             "text": (self.description or "")[:1200],
             "area": self.area_desc,
+            "lgd_codes": self.lgd_codes,
             "link": self.link,
             "language": self.language,
             "summary_only": self.summary_only,
-            "hazards": sorted(self.hazards()),
+            "floor_hazards": sorted(self.hazards()),
+            "hazards": sorted(self.info_hazards()),
             "fetch_id": self.fetch_id,
+            "feed": self.feed,
         }
 
 
@@ -107,7 +135,7 @@ def _children(el, name: str) -> list:
 
 def _text(el, name: str) -> str | None:
     for c in el:
-        if _local(c.tag) == name and c.text:
+        if _local(c.tag) == name and c.text and c.text.strip():
             return c.text.strip()
     return None
 
@@ -118,10 +146,7 @@ def parse_time(s: str | None) -> dt.datetime | None:
     s = s.strip()
     for fmt in (None, "%a, %d %b %Y %H:%M:%S %z", "%a, %d %b %Y %H:%M:%S %Z"):
         try:
-            if fmt is None:
-                t = dt.datetime.fromisoformat(s.replace("Z", "+00:00"))
-            else:
-                t = dt.datetime.strptime(s, fmt)
+            t = dt.datetime.fromisoformat(s.replace("Z", "+00:00")) if fmt is None else dt.datetime.strptime(s, fmt)
             return t if t.tzinfo else t.replace(tzinfo=dt.timezone.utc)
         except ValueError:
             continue
@@ -148,54 +173,49 @@ def detect_color(*texts: str | None, severity: str | None = None) -> str | None:
 
 
 def parse_cap(xml: bytes | str, link: str | None = None) -> list[OfficialAlert]:
-    """Parse one CAP document (any CAP 1.x namespace). One OfficialAlert per info block."""
-    root = etree.fromstring(xml.encode() if isinstance(xml, str) else xml, parser=etree.XMLParser(resolve_entities=False, no_network=True))
+    """Parse one CAP document (any CAP 1.x namespace/prefix) into ONE alert.
+
+    The English info block is preferred (SACHET adds a regional-language copy).
+    """
+    root = etree.fromstring(xml.encode() if isinstance(xml, str) else xml,
+                            parser=etree.XMLParser(resolve_entities=False, no_network=True))
     if _local(root.tag) != "alert":
         found = [e for e in root.iter() if _local(e.tag) == "alert"]
         if not found:
             raise ValueError("no CAP <alert> element")
         root = found[0]
-    ident = _text(root, "identifier") or ""
-    sender = _text(root, "sender")
+    infos = _children(root, "info")
+    if not infos:
+        raise ValueError("CAP alert has no <info>")
+    info = next((i for i in infos if (_text(i, "language") or "").lower().startswith("en")), infos[0])
+    params = [(_text(p, "valueName") or "", _text(p, "value") or "") for p in _children(info, "parameter")]
+    areas = _children(info, "area")
+    polys = [poly for a in areas for p in _children(a, "polygon") if p.text for poly in [_parse_polygon(p.text)] if poly]
+    severity = _text(info, "severity")
+    headline = _text(info, "headline")
+    desc = _text(info, "description")
     sent = parse_time(_text(root, "sent"))
-    out = []
-    infos = _children(root, "info") or [root]
-    for info in infos:
-        params = " ".join(
-            f"{_text(p, 'valueName') or ''} {_text(p, 'value') or ''}" for p in _children(info, "parameter")
-        )
-        areas = _children(info, "area")
-        area_desc = "; ".join(filter(None, (_text(a, "areaDesc") for a in areas))) or None
-        polys = []
-        for a in areas:
-            for p in _children(a, "polygon"):
-                if p.text:
-                    poly = _parse_polygon(p.text)
-                    if poly:
-                        polys.append(poly)
-        severity = _text(info, "severity")
-        headline = _text(info, "headline")
-        desc = _text(info, "description")
-        out.append(OfficialAlert(
-            identifier=ident,
-            sender=sender,
-            agency=_text(info, "senderName") or sender,
-            event=_text(info, "event"),
-            severity=severity,
-            urgency=_text(info, "urgency"),
-            certainty=_text(info, "certainty"),
-            color=detect_color(params, headline, _text(info, "event"), desc, severity=severity),
-            issued=sent,
-            effective=parse_time(_text(info, "effective")) or sent,
-            expires=parse_time(_text(info, "expires")),
-            headline=headline,
-            description=desc,
-            area_desc=area_desc,
-            polygons=polys,
-            link=link,
-            language=_text(info, "language"),
-        ))
-    return out
+    param_text = " ".join(f"{k} {v}" for k, v in params if "url" not in k.lower())
+    return [OfficialAlert(
+        identifier=_text(root, "identifier") or "",
+        sender=_text(root, "sender"),
+        agency=_text(info, "senderName") or _text(root, "sender"),
+        event=_text(info, "event"),
+        severity=severity,
+        urgency=_text(info, "urgency"),
+        certainty=_text(info, "certainty"),
+        color=detect_color(param_text, headline, _text(info, "event"), desc, severity=severity),
+        issued=sent,
+        effective=parse_time(_text(info, "effective")) or sent,
+        expires=parse_time(_text(info, "expires")),
+        headline=headline,
+        description=desc,
+        area_desc="; ".join(filter(None, (_text(a, "areaDesc") for a in areas))) or None,
+        polygons=polys,
+        lgd_codes=[v for k, v in params if k.strip().lower() == "lgd district code"],
+        link=link,
+        language=_text(info, "language"),
+    )]
 
 
 @dataclass
@@ -205,6 +225,7 @@ class FeedItem:
     description: str | None
     published: dt.datetime | None
     guid: str | None
+    author: str | None = None
     inline_cap: Any = None
 
 
@@ -214,8 +235,7 @@ def parse_feed(xml: str) -> list[FeedItem]:
         raise ValueError("feed is not XML")
     items: list[FeedItem] = []
     for el in root.iter():
-        name = _local(el.tag)
-        if name not in ("item", "entry"):
+        if _local(el.tag) not in ("item", "entry"):
             continue
         link = _text(el, "link")
         if not link:
@@ -223,14 +243,15 @@ def parse_feed(xml: str) -> list[FeedItem]:
                 if _local(c.tag) == "link" and c.get("href"):
                     link = c.get("href")
                     break
-        inline = next((c for c in el.iter() if _local(c.tag) == "alert"), None)
+        author = _text(el, "author")
+        m = re.search(r"\(([^)]+)\)", author or "")
         items.append(FeedItem(
-            title=_text(el, "title"),
-            link=link,
+            title=_text(el, "title"), link=link,
             description=_text(el, "description") or _text(el, "summary") or _text(el, "content"),
             published=parse_time(_text(el, "pubDate") or _text(el, "published") or _text(el, "updated")),
             guid=_text(el, "guid") or _text(el, "id"),
-            inline_cap=inline,
+            author=m.group(1) if m else author,
+            inline_cap=next((c for c in el.iter() if _local(c.tag) == "alert"), None),
         ))
     if not items and _local(root.tag) not in ("rss", "feed", "RDF", "channel"):
         raise ValueError(f"unexpected feed root <{_local(root.tag)}>")
@@ -243,24 +264,68 @@ def _validate_feed(payload: Any) -> None:
     parse_feed(payload)
 
 
-async def fetch_alerts() -> tuple[list[OfficialAlert], str]:
-    """Fetch the SACHET feed and its CAP documents. Raises SourceError if the feed fails."""
+def feed_urls() -> list[tuple[str, str]]:
+    """(label, url) for every monitored state's SACHET feed (+ national if enabled)."""
     s = get_settings()
-    res = await fetch("sachet", s.sachet_feed_url, parse="text", validate=_validate_feed)
-    items = parse_feed(res.payload)
-    alerts: list[OfficialAlert] = []
+    cfg = get_config()
+    out = []
+    for code in sorted({d.state for d in cfg.districts}):
+        name = cfg.sachet_feeds.get(code)
+        if name:
+            out.append((code, f"{s.sachet_state_feed_base.rstrip('/')}/{name}.xml"))
+    if s.sachet_use_national_feed or not out:
+        out.append(("IN", s.sachet_feed_url))
+    return out
+
+
+async def fetch_alerts() -> tuple[list[OfficialAlert], str]:
+    """Fetch every configured SACHET feed and the CAP documents of recent items.
+
+    Raises SourceError only if EVERY feed fails; partial failures are logged per feed.
+    """
+    feeds = feed_urls()
+    results = await asyncio.gather(*(fetch("sachet", url, parse="text", validate=_validate_feed) for _, url in feeds),
+                                   return_exceptions=True)
+    items: list[tuple[str, FeedItem, str]] = []
+    fetch_ids, errors = [], []
+    for (label, url), res in zip(feeds, results):
+        if isinstance(res, SourceError):
+            errors.append(f"{label}: {res.message}")
+            continue
+        if isinstance(res, Exception):
+            errors.append(f"{label}: {res}")
+            continue
+        fetch_ids.append(res.fetch_id)
+        for it in parse_feed(res.payload):
+            items.append((label, it, res.fetch_id))
+    if not fetch_ids:
+        raise SourceError("sachet", "; ".join(errors) or "all SACHET feeds failed")
+    now = dt.datetime.now(dt.timezone.utc)
+    seen: set[str] = set()
+    recent = []
+    for label, it, fid in items:
+        key = it.guid or it.link or it.title or ""
+        if key in seen:
+            continue
+        seen.add(key)
+        if it.published and (now - it.published).days > ITEM_MAX_AGE_DAYS:
+            continue
+        recent.append((label, it, fid))
     sem = asyncio.Semaphore(6)
 
-    async def load(item: FeedItem) -> list[OfficialAlert]:
+    async def load(label: str, item: FeedItem, feed_fid: str) -> list[OfficialAlert]:
+        cache_key = item.guid or item.link or ""
+        if cache_key and cache_key in _cap_cache:
+            return _cap_cache[cache_key]
+        parsed: list[OfficialAlert] | None = None
         if item.inline_cap is not None:
             try:
                 parsed = parse_cap(etree.tostring(item.inline_cap), link=item.link)
                 for a in parsed:
-                    a.fetch_id = res.fetch_id
-                return parsed
+                    a.fetch_id = feed_fid
             except (ValueError, etree.XMLSyntaxError):
-                pass
-        if item.link and item.link.startswith("http"):
+                parsed = None
+        if parsed is None and item.link and item.link.startswith("http"):
             async with sem:
                 try:
                     cap = await fetch("sachet", item.link, parse="text", attempts=2,
@@ -268,22 +333,26 @@ async def fetch_alerts() -> tuple[list[OfficialAlert], str]:
                     parsed = parse_cap(cap.payload, link=item.link)
                     for a in parsed:
                         a.fetch_id = cap.fetch_id
-                    return parsed
                 except (SourceError, ValueError, etree.XMLSyntaxError):
-                    pass
-        # Fall back to the RSS summary itself (clearly flagged).
-        return [OfficialAlert(
-            identifier=item.guid or item.link or (item.title or ""),
-            sender=None, agency=None, event=item.title, severity=None, urgency=None, certainty=None,
-            color=detect_color(item.title, item.description), issued=item.published, effective=item.published,
-            expires=None, headline=item.title, description=item.description, area_desc=item.title,
-            link=item.link, summary_only=True, fetch_id=res.fetch_id,
-        )]
+                    parsed = None
+        if parsed is None:  # fall back to the RSS summary itself (clearly flagged)
+            parsed = [OfficialAlert(
+                identifier=item.guid or item.link or (item.title or ""), sender=None, agency=item.author, event=item.title,
+                severity=None, urgency=None, certainty=None, color=detect_color(item.title, item.description),
+                issued=item.published, effective=item.published, expires=None, headline=item.title,
+                description=item.description, area_desc=item.title, link=item.link, summary_only=True, fetch_id=feed_fid)]
+        else:
+            if cache_key:
+                _cap_cache[cache_key] = parsed
+        for a in parsed:
+            a.feed = label
+            if not a.agency or a.agency == a.sender:
+                a.agency = item.author or a.agency
+        return parsed
 
-    results = await asyncio.gather(*(load(it) for it in items[:CAP_ITEM_LIMIT]))
-    for r in results:
-        alerts.extend(r)
-    return alerts, res.fetch_id
+    loaded = await asyncio.gather(*(load(lbl, it, fid) for lbl, it, fid in recent[:CAP_FETCH_LIMIT]))
+    alerts = [a for group in loaded for a in group]
+    return alerts, fetch_ids[0]
 
 
 def _point_in_poly(lat: float, lon: float, poly: list[tuple[float, float]]) -> bool:
@@ -300,11 +369,11 @@ def _point_in_poly(lat: float, lon: float, poly: list[tuple[float, float]]) -> b
 
 
 def alert_covers_district(alert: OfficialAlert, d: DistrictCfg, state_name: str) -> bool:
-    """Does an alert's area cover a district? Name/alias match in areaDesc or HQ in polygon."""
+    """Name/alias match in areaDesc or headline (word-bounded), or HQ inside a CAP polygon."""
     lat, lon = d.hq
     if any(_point_in_poly(lat, lon, poly) for poly in alert.polygons):
         return True
-    area = (alert.area_desc or "") + " " + (alert.headline or "")
+    area = " ".join(filter(None, [alert.area_desc, alert.headline]))
     if not area.strip():
         return False
     area_l = area.lower()
@@ -316,7 +385,15 @@ def alert_covers_district(alert: OfficialAlert, d: DistrictCfg, state_name: str)
 
 def district_alerts(alerts: list[OfficialAlert], d: DistrictCfg, state_name: str, hazard: str,
                     now: dt.datetime) -> list[OfficialAlert]:
+    """Active alerts that may act as the official floor for this district and hazard."""
     return [a for a in alerts if a.is_active(now) and hazard in a.hazards() and alert_covers_district(a, d, state_name)]
+
+
+def district_info_alerts(alerts: list[OfficialAlert], d: DistrictCfg, state_name: str, hazard: str,
+                         now: dt.datetime) -> list[OfficialAlert]:
+    """Active alerts shown as information only (e.g. thunderstorm nowcasts) — never a floor."""
+    return [a for a in alerts if a.is_active(now) and hazard in a.info_hazards() and hazard not in a.hazards()
+            and alert_covers_district(a, d, state_name)]
 
 
 def strongest_color(alerts: list[OfficialAlert]) -> str | None:

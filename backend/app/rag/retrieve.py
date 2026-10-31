@@ -8,9 +8,10 @@ Pipeline for ``search(scope, query, k)``:
   1. BM25 over the scope's chunks (own implementation, k1=1.5, b=0.75).
   2. Cosine similarity of query vs. chunk vectors (fastembed, or TF-IDF fallback).
   3. Reciprocal Rank Fusion: score = sum over rankers of 1 / (60 + rank).
-  4. Relevance gate — a chunk counts as found only if it covers enough of the query's
-     content words OR its vector similarity is high enough; otherwise ``not_found``
-     (the agent then says "Not found in district plan" instead of guessing).
+  4. Relevance gate — a chunk counts as found only with (moderate keyword coverage AND
+     some vector similarity), or strong coverage, or strong similarity (thresholds in
+     config/hazards.yaml); otherwise ``not_found`` (the agent then says "Not found in
+     district plan" instead of guessing).
 
 Scopes: ``district:<id>`` (the district's DDMP + city plans) and ``generic`` (NDMA
 guidelines, always labelled generic). Indexes are built lazily and invalidated on ingest.
@@ -18,6 +19,7 @@ guidelines, always labelled generic). Indexes are built lazily and invalidated o
 from __future__ import annotations
 
 import math
+import re
 import threading
 from collections import Counter
 from dataclasses import dataclass, field
@@ -73,8 +75,22 @@ def _load_rows(scope: str) -> list[tuple[PlanChunk, PlanDocument]]:
         return list(s.execute(q.order_by(PlanChunk.document_id, PlanChunk.page, PlanChunk.id)).all())
 
 
+_TOC_ENTRY = re.compile(r"(?:^|\s)(?:\d{1,2}(?:\.\d{1,2}){0,3})\s+[A-Za-z][^\n]{2,80}?\s(\d{1,3})(?=\s|$)")
+
+
+def looks_like_toc(text: str) -> bool:
+    """Table-of-contents pages ("4.1 Cyclone 35 4.1.1 Nada Cyclonic Storm 2005 36 …") match many
+    queries but contain no actionable content, so they are excluded from retrieval."""
+    flat = " ".join(text.split())
+    if "contents" in flat[:200].lower() or "index" == flat[:5].lower():
+        return True
+    entries = _TOC_ENTRY.findall(flat)
+    words = max(1, len(flat.split()))
+    return len(entries) >= 5 and len(entries) * 6 >= words * 0.35
+
+
 def build_index(scope: str) -> ScopeIndex:
-    rows = _load_rows(scope)
+    rows = [(c, d) for c, d in _load_rows(scope) if not looks_like_toc(c.text)]
     ids = [c.id for c, _ in rows]
     texts = [c.text for c, _ in rows]
     meta = [{
@@ -176,16 +192,19 @@ def search(scope: str, query: str, k: int = 6) -> SearchResult:
         for rank_pos, i in enumerate(order[:200]):
             if scores[i] > 0:
                 rrf[i] += 1.0 / (60 + rank_pos + 1)
-    min_cov = float(agent_cfg.get("retrieval_min_coverage", 0.34))
-    min_cos = float(agent_cfg.get("retrieval_min_cosine" if idx.backend == "fastembed" else "retrieval_min_cosine_tfidf",
-                                  0.45 if idx.backend == "fastembed" else 0.12))
+    fe = idx.backend == "fastembed"
+    min_cov = float(agent_cfg.get("retrieval_min_coverage", 0.5))
+    min_cos = float(agent_cfg.get("retrieval_min_cosine" if fe else "retrieval_min_cosine_tfidf", 0.45 if fe else 0.15))
+    strong_cov = float(agent_cfg.get("retrieval_strong_coverage", 0.75))
+    strong_cos = float(agent_cfg.get("retrieval_strong_cosine" if fe else "retrieval_strong_cosine_tfidf", 0.6 if fe else 0.28))
     order = np.argsort(-rrf, kind="stable")
     out = []
     for i in order:
         if rrf[i] <= 0:
             break
         cov = coverage(q_toks, idx.toks[i])
-        if cov < min_cov and cos[i] < min_cos:
+        relevant = (cov >= min_cov and cos[i] >= min_cos) or cov >= strong_cov or cos[i] >= strong_cos
+        if not relevant:
             continue
         out.append({
             **idx.meta[i],

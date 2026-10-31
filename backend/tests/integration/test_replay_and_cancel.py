@@ -94,3 +94,17 @@ async def test_officer_stand_down_publishes_cap_cancel(fresh_db, mock_http):
         assert [a["msg_type"] for a in alerts] == ["Cancel", "Alert"]
         xml = (await c.get(alerts[0]["cap_url"])).text
         assert "<msgType>Cancel</msgType>" in xml and "<references>" in xml and validate_cap(xml)["valid"]
+
+
+async def test_replay_endpoint_starts_and_reports(fresh_db, mock_http):
+    """Through the HTTP endpoint (a sync endpoint once crashed here: no event loop in worker thread)."""
+    from app.main import app
+
+    mock_http(replay_handler)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t") as c:
+        r = await c.post("/api/replay", json={"event_key": "fengal_2024"})
+        assert r.status_code == 202, r.text
+        rid = r.json()["replay_id"]
+        await replay_runner._tasks[rid]
+        res = (await c.get(f"/api/replay/{rid}")).json()
+        assert res["status"] == "completed" and res["result"]["first_fire"]["ACT"] is not None

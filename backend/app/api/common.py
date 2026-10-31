@@ -80,14 +80,19 @@ def district_summary(s, d_row: District, failed_ids: set[str], with_geometry: bo
     active_levels = [t.level for t in trigs if t.status == "active"]
     level = max_level(*active_levels) if active_levels else max_level(rain.level if rain else None,
                                                                        river.level if river else None)
+    drivers = [t.hazard for t in trigs if t.status == "active" and t.level == level] or \
+              [h for h, a in (("rain", rain), ("river", river)) if a is not None and a.level == level and level]
+    level_hazard = drivers[0] if drivers else None
     rain_d = assessment_dict(rain, stale_scan=d_row.id in failed_ids)
     head = (rain_d or {}).get("headline") or {}
     top = max(trigs, key=lambda t: (rank(t.level), -(aware(t.t_star).timestamp() if t.t_star else 9e12)), default=None)
-    t_star = iso(top.t_star) if top and top.t_star else (rain_d or {}).get("t_star")
+    driver = river if level_hazard == "river" else rain
+    t_star = iso(top.t_star) if top and top.t_star else (iso(driver.t_star) if driver is not None and driver.t_star else None)
     flags = (rain_d or {}).get("flags") or {}
     out = {
         "id": d_row.id, "name": d_row.name, "state": d_row.state, "hq": [d_row.centroid_lat, d_row.centroid_lon],
-        "aliases": d_row.aliases or [], "level": level,
+        "aliases": d_row.aliases or [], "level": level, "level_hazard": level_hazard,
+        "river_detail": _river_detail(river) if river is not None and river.level else None,
         "triggers": [trigger_dict(t) for t in trigs],
         "stand_down_recommended": any(t.status == "stand_down_recommended" for t in trigs),
         "t_star": t_star,
@@ -109,6 +114,16 @@ def district_summary(s, d_row: District, failed_ids: set[str], with_geometry: bo
     if with_geometry:
         out["geometry"] = simplified_geojson(d_row.boundary) if d_row.boundary else None
     return out
+
+
+def _river_detail(a: Assessment) -> dict | None:
+    for p in (a.details or {}).get("points") or []:
+        rule = (p.get("rules") or {}).get(a.level or "")
+        if p.get("level") == a.level and rule:
+            return {"river": p.get("river"), "statistic": rule["statistic"], "percentile": rule["percentile"],
+                    "threshold_m3s": rule["threshold_m3s"], "peak_m3s": rule["peak_m3s"],
+                    "first_exceed_time": rule.get("first_exceed_time")}
+    return None
 
 
 def sort_key(d: dict) -> tuple:

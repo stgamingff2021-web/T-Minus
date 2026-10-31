@@ -85,8 +85,9 @@ export default function Replay() {
             <div className="card" style={{ marginBottom: 14 }}>
               <div className="section-title">{res.event.name} · {res.district.name} — agreement through time vs observed rainfall</div>
               <ReplayChart result={res} />
+              {res.observed.error && <div className="banner warn small" style={{ marginTop: 6 }}>Ground truth unavailable: {res.observed.error}. Fire times are shown; lead times need the observed peak and are not estimated.</div>}
               <div className="small muted" style={{ marginTop: 6 }}>
-                Observed peak 24-h rainfall: <b>{res.observed.peak_mm} mm</b> ending {istFromUnix(res.observed.peak_time)} (reanalysis archive). Models used: {res.models_used.join(", ")}.
+                Observed peak 24-h rainfall: <b>{res.observed.peak_mm ?? "—"} mm</b> ending {istFromUnix(res.observed.peak_time)} (reanalysis archive). Models used: {res.models_used.join(", ")}.
                 {res.models_skipped.length > 0 && <> Skipped: {res.models_skipped.map((m: any) => `${m.model} (${m.reason})`).join("; ")}.</>}
               </div>
             </div>

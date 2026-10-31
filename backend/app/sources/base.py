@@ -195,6 +195,10 @@ async def fetch(
                 body = resp.text[:300]
                 last_err = f"HTTP {resp.status_code}: {body}"
                 retryable = resp.status_code in RETRYABLE_STATUS
+                if resp.status_code == 429:
+                    # Rate limited: retrying within seconds only burns more quota (Open-Meteo
+                    # minutely/daily limits). Surface it; callers decide when to try again.
+                    break
                 if retryable and attempt < attempts:
                     await asyncio.sleep(backoff_s * 2 ** (attempt - 1))
                     continue
@@ -232,4 +236,5 @@ async def fetch(
         source=source, url=url, params=shown_params, status="error", http_code=last_code,
         latency_ms=latency, attempts=attempt, error=last_err,
     )
-    raise SourceError(source, last_err, http_code=last_code, retryable=retryable, fetch_id=fid)
+    raise SourceError(source, last_err, http_code=last_code, retryable=retryable, fetch_id=fid,
+                      code="rate_limited" if last_code == 429 else "source_error")

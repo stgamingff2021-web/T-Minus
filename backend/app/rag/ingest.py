@@ -40,8 +40,8 @@ class PageText:
     ocr_confidence: float | None = None
 
 
-def validate_pdf_bytes(data: bytes) -> None:
-    limit = get_settings().max_upload_mb * 1024 * 1024
+def validate_pdf_bytes(data: bytes, limit_mb: int | None = None) -> None:
+    limit = (limit_mb or get_settings().max_upload_mb) * 1024 * 1024
     if not data:
         raise IngestError("empty_file", "The file is empty.")
     if len(data) > limit:
@@ -108,12 +108,13 @@ def ingest_pdf(
     source_url: str | None,
     edition_year: int | None = None,
     ingested_by: str | None = None,
+    limit_mb: int | None = None,
 ) -> dict:
     if kind not in ("district", "city", "generic"):
         raise IngestError("bad_kind", "kind must be district, city or generic")
     if kind != "generic" and not district_id:
         raise IngestError("missing_district", "A district is required for district/city plans.")
-    validate_pdf_bytes(data)
+    validate_pdf_bytes(data, limit_mb)
     sha = hashlib.sha256(data).hexdigest()
     with session_scope() as s:
         dup = s.execute(select(PlanDocument).where(PlanDocument.sha256 == sha,

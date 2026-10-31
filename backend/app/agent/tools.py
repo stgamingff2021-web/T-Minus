@@ -8,6 +8,7 @@ retrieved text (PDFs, feeds) is data, never instructions.
 """
 from __future__ import annotations
 
+import asyncio
 import datetime as dt
 import json
 import time
@@ -24,6 +25,9 @@ from app.rag import retrieve
 from app.sources.base import SourceError
 from app.sources.ors import circle_polygon, route
 from app.sources.osm import FACILITY_TYPES, fetch_facilities, geocode
+
+
+TOOL_TIMEOUT_S = 45.0  # no single tool may stall a run (e.g. an unresponsive Overpass mirror)
 
 
 class BudgetExceeded(Exception):
@@ -417,8 +421,13 @@ async def call_tool(ctx: ToolContext, name: str, args: dict, *, by: str = "agent
     ctx.emit("tool_call", {"tool": name, "args": args, "n": ctx.calls, "by": by})
     t0 = time.perf_counter()
     try:
-        out = await IMPLS[name](ctx, args)
+        out = await asyncio.wait_for(IMPLS[name](ctx, args), timeout=TOOL_TIMEOUT_S)
         ok = out.get("status") not in ("error",)
+    except asyncio.TimeoutError:
+        out = {"status": "error", "message": f"{name} timed out after {TOOL_TIMEOUT_S:.0f} s (upstream not responding)",
+               "retryable": True}
+        ok = False
+        ctx.errors.append(out["message"])
     except SourceError as exc:
         out = {"status": "error", "message": exc.message, "source": exc.source, "simulated": exc.simulated,
                "retryable": exc.retryable}

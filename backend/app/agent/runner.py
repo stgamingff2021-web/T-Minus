@@ -76,7 +76,7 @@ def start_run_background(district_id: str, hazard: str, *, trigger_id: str | Non
     llm = get_llm()
     run_id = create_run(district_id, hazard, trigger_id=trigger_id, started_by=started_by,
                         model=llm.name if llm else None)
-    task = asyncio.get_event_loop().create_task(execute_run(run_id, llm))
+    task = asyncio.get_running_loop().create_task(execute_run(run_id, llm))
     _tasks[run_id] = task
     return run_id
 

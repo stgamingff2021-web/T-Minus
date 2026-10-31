@@ -24,6 +24,20 @@ Built for the **Forge Gen AI Buildathon · Theme 2: Climate, Resource Infrastruc
 | **Sources panel + chaos switch** | Status, last fetch, latency and model run of every source; admins can force a source to fail (labelled *simulated outage*) to show the ECMWF → GFS fallback live. |
 | **Replay** | Backtests real past events (Cyclone Fengal 2024) using **forecasts as issued at the time** (Open-Meteo Previous Runs API — never the Historical Forecast API), reporting when each level would have fired relative to the observed rainfall peak, plus a quiet-period false-alarm check. |
 
+## Live verification (31 Oct 2026)
+
+Run against the real public APIs — screenshots in [`docs/evidence/`](docs/evidence/):
+
+* **Scan:** all 44 districts in **6.1 s** from the live ECMWF 51-member ensemble (model run 2026-10-30 18:00 UTC read from Open-Meteo `meta.json`); member naming, member counts (51 ECMWF / 31 GFS) and hourly coverage confirmed.
+* **Triggers:** no district near the very-heavy-rain threshold that day (highest: SPSR Nellore 13.7%, 7 of 51); 7 districts at **WATCH from the GloFAS river rule** (ensemble maximum above each cell's own 1984–2022 P95), opened once and not duplicated by later scans.
+* **Replay, Cyclone Fengal (Viluppuram), forecasts as issued by 8 global models:** WATCH 48 h, **PREPARE 30 h**, ACT 24 h before the observed 394.7 mm/24 h peak — target (PREPARE ≥ 24 h) met; no false alarm in the quiet period.
+* **SACHET:** per-state CAP feeds (`rss_tamil`, `rss_puducherry`, …) parsed; real IMD Chennai nowcasts matched to districts by name.
+* **Knowledge base:** GCC City Disaster Management Perspective Plan 2025 (805 pages → 4,601 chunks) and Puducherry DM Action Plan 2023 (396 pages → 1,726 chunks) ingested from their official URLs; hybrid retrieval returns the right pages and answers "not found" for off-topic queries.
+* **Boundaries:** 44/44 districts from OpenStreetMap (via Nominatim). **CAP XSD:** byte-identical to the OASIS original.
+* Bugs found only by live data and fixed: river points snapped to the real GloFAS channel, lightning nowcasts no longer act as orange floors, rate-limit (429) handling, table-of-contents pages excluded from retrieval, a replay-endpoint event-loop crash, per-tool timeouts.
+
+> **Open-Meteo quotas:** the free tier is limited per IP per minute and per day, and multi-decade requests (river baselines, replay) count as many calls. Run `compute_river_baselines` once (it waits out per-minute limits) and keep the database between deploys.
+
 ## The five golden rules — and where the code enforces them
 
 1. **No mock data. Ever.** Every number on screen comes from an `assessments` row whose `fetch_ids` point at `source_fetches.raw_payload` — the exact API response. *Recompute from raw* (district page, AC-02) re-derives each probability from that payload in front of you. When a source fails the UI shows the failure and the last real value as **STALE** with its timestamp; nothing is interpolated. Test fixtures exist only in `backend/tests/` and never ship.
@@ -128,7 +142,7 @@ The image builds the dashboard, installs PDF fonts (incl. Noto Sans Tamil) and T
 cd backend && python -m pytest -q -m "not live"
 ```
 
-75 tests: unit tests for every pure function (rolling accumulation, probability incl. the spec's 38/51 worked example, t\*, onset, level rules, +1 escalation cap, disagreement, hysteresis by model run, SMS segment counting, probability wording, CAP builder + XSD, verbatim-citation checker, number/facility/phase checks, chunker, SACHET parsing, replay no-look-ahead) and integration tests that drive a **full scan** and a **full agent run** (with a scripted LLM double) through mocked HTTP — covering trigger dedupe, stand-down, ECMWF→GFS fallback, all-sources-down, official floors, VERIFY rejection and retry, the approval gate, CAP validity, the audit log, replay without look-ahead, officer stand-down → CAP Cancel, and garbage input (AC-14).
+76 tests: unit tests for every pure function (rolling accumulation, probability incl. the spec's 38/51 worked example, t\*, onset, level rules, +1 escalation cap, disagreement, hysteresis by model run, SMS segment counting, probability wording, CAP builder + XSD, verbatim-citation checker, number/facility/phase checks, chunker, SACHET parsing, replay no-look-ahead) and integration tests that drive a **full scan** and a **full agent run** (with a scripted LLM double) through mocked HTTP — covering trigger dedupe, stand-down, ECMWF→GFS fallback, all-sources-down, official floors, VERIFY rejection and retry, the approval gate, CAP validity, the audit log, replay without look-ahead, officer stand-down → CAP Cancel, and garbage input (AC-14).
 
 ```bash
 python -m pytest -q -m live tests/integration/test_live_sources.py
@@ -181,7 +195,7 @@ All errors share one shape: `{ "error": { "code", "message", "source", "retryabl
 
 * GloFAS (~5 km) represents large rivers far better than Chennai's small urban channels; rainfall is the primary trigger and the river signal is supporting evidence (shown in the UI).
 * Replay uses **multi-model agreement** from deterministic runs archived as issued (ensemble members are not archived); it is labelled as such and is not identical to a live 51-member probability. Coverage depends on Open-Meteo's archive (Fengal 2024 is covered; Michaung 2023 may not be).
-* The SACHET feed URL and the exact fields it populates must be confirmed during setup (`SACHET_FEED_URL`); the parser accepts RSS/Atom with inline or linked CAP and maps colour from explicit words first, CAP severity second.
+* SACHET publishes no colour code and keeps polygons behind a firewall, so district matching relies on the area names in each alert; thunderstorm/lightning nowcasts are informational, only heavy-rain/flood/cyclone alerts act as floors.
 * Without `ANTHROPIC_API_KEY` the planner runs in retrieval-only mode. Without `ORS_API_KEY` safe routes are disabled (reported in the Sources panel).
 * Tamil UI labels and the Tamil wording hints need native-speaker review; all Tamil public messages are reviewed by an officer before publication.
 * See [`docs/assumptions.md`](docs/assumptions.md) and [`docs/decisions.md`](docs/decisions.md).

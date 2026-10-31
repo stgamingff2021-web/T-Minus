@@ -157,18 +157,27 @@ async def execute(replay_id: str, event_key: str) -> None:
         skipped: list[dict] = []
         start, end, step_h = _parse_t(ev["as_of_start"]), _parse_t(ev["as_of_end"]), int(ev.get("step_h", 6))
         main = await _timeline(lat, lon, models, start, end, step_h, rain_cfg, fetch_ids, skipped)
-        truth_res, truth = await fetch_archive_rain(lat, lon, _parse_t(ev["truth_start"]).date().isoformat(),
-                                                    _parse_t(ev["truth_end"]).date().isoformat())
-        fetch_ids.append(truth_res.fetch_id)
-        peak = observed_peak(truth.times, truth.values)
+        if not main["models_used"]:
+            reasons = "; ".join(sorted({m["reason"][:120] for m in skipped})) or "no archived forecasts"
+            raise ValueError(f"No as-issued forecasts could be fetched for this event ({reasons}). Nothing is estimated.")
+        try:
+            truth_res, truth = await fetch_archive_rain(lat, lon, _parse_t(ev["truth_start"]).date().isoformat(),
+                                                        _parse_t(ev["truth_end"]).date().isoformat())
+            fetch_ids.append(truth_res.fetch_id)
+            peak = observed_peak(truth.times, truth.values)
+        except SourceError as exc:  # ground truth unavailable: report fire times, no lead time (never invented)
+            peak = {"peak_time": None, "peak_mm": None, "series": [], "error": exc.message[:200]}
         leads = {lv: (None if (ft is None or peak["peak_time"] is None) else round((peak["peak_time"] - ft) / HOUR, 1))
                  for lv, ft in main["first_fire"].items()}
         quiet_skipped: list[dict] = []
         q_start, q_end = _parse_t(ev["quiet_start"]), _parse_t(ev["quiet_end"])
         quiet = await _timeline(lat, lon, models, q_start, q_end, step_h, rain_cfg, fetch_ids, quiet_skipped)
-        q_truth_res, q_truth = await fetch_archive_rain(lat, lon, q_start.date().isoformat(), q_end.date().isoformat())
-        fetch_ids.append(q_truth_res.fetch_id)
-        q_peak = observed_peak(q_truth.times, q_truth.values)
+        try:
+            q_truth_res, q_truth = await fetch_archive_rain(lat, lon, q_start.date().isoformat(), q_end.date().isoformat())
+            fetch_ids.append(q_truth_res.fetch_id)
+            q_peak = observed_peak(q_truth.times, q_truth.values)
+        except SourceError as exc:
+            q_peak = {"peak_time": None, "peak_mm": None, "series": [], "error": exc.message[:200]}
         false_alarms = {lv: ft is not None for lv, ft in quiet["first_fire"].items()}
         vh = float(rain_cfg["categories_mm"]["very_heavy"])
         result = {
@@ -205,5 +214,5 @@ def start(event_key: str) -> str:
         s.add(r)
         s.flush()
         rid = r.id
-    _tasks[rid] = asyncio.get_event_loop().create_task(execute(rid, event_key))
+    _tasks[rid] = asyncio.get_running_loop().create_task(execute(rid, event_key))
     return rid

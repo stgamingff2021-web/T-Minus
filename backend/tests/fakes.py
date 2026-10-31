@@ -73,9 +73,13 @@ EMPTY_RSS = """<?xml version="1.0"?><rss version="2.0"><channel><title>SACHET</t
 
 
 def rss_with_cap(cap_xml: str) -> str:
+    import email.utils
+
+    pub = email.utils.formatdate(time.time() - 3600, usegmt=True)
     return f"""<?xml version="1.0"?><rss version="2.0"><channel><title>SACHET</title>
 <item><title>Orange alert</title><link>https://example.invalid/cap1</link><description>x</description>
-<pubDate>Sat, 31 Oct 2026 06:00:00 +0000</pubDate></item></channel></rss>""", cap_xml
+<author>controlroom@ndma.gov.in (IMD Chennai)</author><guid>cap1</guid>
+<pubDate>{pub}</pubDate></item></channel></rss>""", cap_xml
 
 
 def cap_orange(area: str = "Chennai, Tiruvallur", expires: str = "2099-01-01T00:00:00+05:30") -> str:

@@ -56,7 +56,7 @@ export default function Run() {
 
       {run.status === "unavailable" && (
         <div className="banner warn" style={{ marginBottom: 12 }}>
-          <AlertTriangle size={16} /> Planner temporarily unavailable ({plan?.gather_note || run.error}). The scanner, triggers and map keep working. Relevant plan sections retrieved below.
+          <AlertTriangle size={16} /> {plan?.gather_note || `Planner temporarily unavailable (${run.error})`} The scanner, triggers and map keep working; the relevant plan sections retrieved for this district are listed below.
         </div>
       )}
       {run.status === "partial" && <div className="banner danger" style={{ marginBottom: 12 }}><AlertTriangle size={16} /> Partial plan — the verifier still found problems after all retries. Problems are marked on each action; communications were not drafted.</div>}

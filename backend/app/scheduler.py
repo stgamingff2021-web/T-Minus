@@ -55,7 +55,7 @@ def start() -> None:
     if not get_settings().scheduler_enabled:
         return
     if _task is None or _task.done():
-        _task = asyncio.get_event_loop().create_task(_loop())
+        _task = asyncio.get_running_loop().create_task(_loop())
 
 
 async def stop() -> None:

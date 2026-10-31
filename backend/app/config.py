@@ -65,9 +65,12 @@ class Settings(BaseSettings):
     open_meteo_api_key: str = ""         # optional commercial key; free tier needs none
     ensemble_models: str = "ecmwf_ifs025,gfs025"
     sachet_feed_url: str = "https://sachet.ndma.gov.in/cap_public_website/rss/rss_india.xml"
+    sachet_state_feed_base: str = "https://sachet.ndma.gov.in/cap_public_website/rss/"
+    sachet_use_national_feed: bool = False  # national feed only keeps the latest 100 items (all states)
     imd_enabled: bool = False
     imd_base_url: str = ""
     overpass_url: str = "https://overpass-api.de/api/interpreter"
+    overpass_mirrors: str = "https://overpass.kumi.systems/api/interpreter,https://overpass.private.coffee/api/interpreter"
     nominatim_url: str = "https://nominatim.openstreetmap.org/search"
     ors_url: str = "https://api.openrouteservice.org/v2/directions/driving-car/geojson"
     ors_api_key: str = ""
@@ -75,7 +78,8 @@ class Settings(BaseSettings):
     http_timeout_s: float = 30.0
 
     # --- uploads ---
-    max_upload_mb: int = 30
+    max_upload_mb: int = 30          # officer uploads through the UI (spec starting value)
+    max_ingest_mb: int = 150         # setup-script downloads from official sources (city plans can be 60+ MB)
 
     @property
     def is_production(self) -> bool:
@@ -129,6 +133,7 @@ class AppConfig(BaseModel):
     hazards: dict[str, Any]
     districts: list[DistrictCfg]
     states: dict[str, str]
+    sachet_feeds: dict[str, str] = Field(default_factory=dict)
     district_defaults: dict[str, Any]
     plans: list[dict[str, Any]]
     replay: dict[str, Any]
@@ -163,6 +168,7 @@ def get_config() -> AppConfig:
         hazards=hazards,
         districts=districts,
         states=dist.get("states", {}),
+        sachet_feeds=dist.get("sachet_feeds", {}),
         district_defaults=dist.get("defaults", {}),
         plans=plans.get("documents", []),
         replay=replay,

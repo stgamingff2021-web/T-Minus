@@ -16,6 +16,17 @@
 defaults:
   search_radius_km: 25
 
+# NDMA SACHET per-state CAP RSS feeds (verified live 2026-10-31):
+#   https://sachet.ndma.gov.in/cap_public_website/rss/<name>.xml
+sachet_feeds:
+  TN: rss_tamil
+  PY: rss_puducherry
+  KL: rss_kerala
+  AP: rss_andhra
+  OR: rss_odisha
+  AS: rss_assam
+  MH: rss_maharashtra
+
 states:
   TN: Tamil Nadu
   PY: Puducherry

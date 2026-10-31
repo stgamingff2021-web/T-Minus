@@ -133,6 +133,11 @@ export default function CommandMap() {
                 <div style={{ minWidth: 0 }}>
                   <div className="name">{d.name} {d.watchlist && <span className="pill">{d.state}</span>}</div>
                   <div className="sub">
+                    {d.level_hazard === "river" && d.river_detail && (
+                      <span className="pill info" style={{ marginRight: 6 }} title="Level set by the GloFAS river signal">
+                        River · {d.river_detail.river}: ensemble {d.river_detail.statistic === "ensemble_max" ? "max" : "median"} {Math.round(d.river_detail.peak_m3s)} &gt; P{d.river_detail.percentile} {Math.round(d.river_detail.threshold_m3s)} m³/s
+                      </span>
+                    )}
                     {d.headline?.probability != null
                       ? <>{CATEGORY_LABEL[d.headline.category]} · <b>{pct(d.headline.probability)}</b> ({d.headline.n_exceed} of {d.headline.n_valid} {t("forecasts")}) ≤{d.headline.within_h} h</>
                       : d.rain ? "No ensemble member crosses the thresholds" : ls?.status === "failed" ? "Live data unavailable — forecast sources unreachable" : "Awaiting live data"}

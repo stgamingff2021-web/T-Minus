@@ -207,7 +207,7 @@ def list_fetches(source: str | None = None, limit_n: int = Query(50, alias="limi
 async def scan_now():
     if scanner.scan_state().get("running"):
         return {"status": "already_running"}
-    asyncio.get_event_loop().create_task(scanner.run_scan("manual"))
+    asyncio.get_running_loop().create_task(scanner.run_scan("manual"))
     return {"status": "started", "started_at": utcnow().isoformat()}
 
 
