@@ -135,3 +135,32 @@ readiness:
     road_access: [road, route, access, reach, evacuat, transport]
     backup_power: [generator, backup power, power backup, power supply, diesel, electricity]
     medical: [hospital, medical, ambulance, health, medicine, PHC, doctor]
+
+# Feature 2 — local impact. The ensemble grid (~25 km) makes the hazard district-wide; local
+# differences come from terrain. These are model weights, not measurements.
+impact:
+  max_cells: 64                 # grid points inside the district boundary
+  name_top_cells: 8             # most-affected cells named via Nominatim (1 request/s, cached)
+  weights: {low_elevation: 0.45, depression: 0.25, river_proximity: 0.30}
+  depression_scale_m: 5         # a cell 5 m below its neighbours scores the full depression weight
+  river_scale_km: 5             # river proximity fades to zero at this distance
+  susceptibility_floor: 0.4     # impact = hazard x (floor + (1 - floor) x susceptibility)
+  saturation_multiplier: 1.2    # hazard multiplier when the ground is saturated (72-h rain)
+  wind_kmh: {cyclonic: 62, severe: 89}   # IMD: cyclonic storm >= 62 km/h, severe cyclonic storm >= 89 km/h
+  wind_model: ecmwf_ifs025
+  classes: {high: 0.5, medium: 0.25, low: 0.1}
+  exposure_weights: {urban: 1.0, village: 0.8, sparse: 0.5, unknown: 0.8}
+  refresh_min: 60
+
+# Feature 4 — critical assets. Measures are suggestions (shown as "Suggested — not in district plan").
+assets:
+  cache_h: 24
+  relocation_types: [grain_storage, cold_storage, seed_store]
+  measures:
+    grain_storage: [Raise stacks onto dunnage or pallets, Cover stock with tarpaulins and seal doors and vents, Move stock to a safer warehouse]
+    cold_storage: [Confirm backup generator and fuel, Move temperature-sensitive stock to a safer facility]
+    seed_store: [Lift seed bags off the floor in waterproof packing, Shift seed stock to higher ground]
+    hospital: [Check backup power and fuel, Stock critical medicines and oxygen, Plan transfer of ground-floor patients]
+    substation: [Agree pre-emptive shutdown and restoration crews with the power utility, Protect control rooms against water entry]
+    water_works: [Fuel backup pumps, Protect pump-house electricals]
+    fuel: [Secure tanks and dispensers, Keep fuel reserved for generators and rescue vehicles]

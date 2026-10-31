@@ -43,6 +43,8 @@ SOURCES: dict[str, SourceMeta] = {
         SourceMeta("open_meteo_meta", "Model run metadata (meta.json)", "Open-Meteo",
                    "Model run initialisation times (hysteresis counts new runs)", 7 * 60, chaos_allowed=False,
                    attribution="Weather data: Open-Meteo (CC BY 4.0)"),
+        SourceMeta("elevation", "Ground elevation (Copernicus DEM, 90 m)", "Open-Meteo Elevation API",
+                   "Low-lying areas and assets (impact engine)", 100000, attribution="Copernicus DEM via Open-Meteo"),
         SourceMeta("forecast", "Deterministic forecast + past 72 h", "Open-Meteo Forecast API",
                    "Antecedent rainfall (saturated ground)", 3 * 60, attribution="Weather data: Open-Meteo (CC BY 4.0)"),
         SourceMeta("flood", "GloFAS v4 river discharge", "Open-Meteo Flood API",

@@ -63,6 +63,7 @@ class Settings(BaseSettings):
     # --- live sources ---
     open_meteo_ensemble_url: str = "https://ensemble-api.open-meteo.com/v1/ensemble"
     open_meteo_forecast_url: str = "https://api.open-meteo.com/v1/forecast"
+    open_meteo_elevation_url: str = "https://api.open-meteo.com/v1/elevation"
     open_meteo_flood_url: str = "https://flood-api.open-meteo.com/v1/flood"
     open_meteo_previous_runs_url: str = "https://previous-runs-api.open-meteo.com/v1/forecast"
     open_meteo_archive_url: str = "https://archive-api.open-meteo.com/v1/archive"
@@ -77,6 +78,7 @@ class Settings(BaseSettings):
     overpass_url: str = "https://overpass-api.de/api/interpreter"
     overpass_mirrors: str = "https://overpass.kumi.systems/api/interpreter,https://overpass.private.coffee/api/interpreter"
     nominatim_url: str = "https://nominatim.openstreetmap.org/search"
+    nominatim_reverse_url: str = "https://nominatim.openstreetmap.org/reverse"
     ors_url: str = "https://api.openrouteservice.org/v2/directions/driving-car/geojson"
     ors_api_key: str = ""
     contact_email: str = ""              # sent in the User-Agent (Nominatim policy)
