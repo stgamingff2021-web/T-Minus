@@ -62,9 +62,9 @@ SOURCES: dict[str, SourceMeta] = {
                    "Replay mode only", 365 * 24 * 60, attribution="Weather data: Open-Meteo (CC BY 4.0)"),
         SourceMeta("archive", "Reanalysis archive (ground truth)", "Open-Meteo Historical Weather API",
                    "Replay ground truth", 365 * 24 * 60, attribution="Weather data: Open-Meteo (CC BY 4.0)"),
-        SourceMeta("llm:primary", "Agent LLM (primary)", "Anthropic Claude",
+        SourceMeta("llm:primary", "Agent LLM (primary)", "Claude or Gemini (configured)",
                    "Agent reasoning, drafting", 24 * 60),
-        SourceMeta("llm:backup", "Agent LLM (backup)", "Anthropic Claude",
+        SourceMeta("llm:backup", "Agent LLM (backup)", "Claude or Gemini (configured)",
                    "Agent reasoning when primary fails", 24 * 60),
     ]
 }
@@ -116,6 +116,20 @@ def observe(source: str, *, status: str, latency_ms: int | None = None, error: s
         else:
             st.failures += 1
             st.last_error = error
+
+
+def recently_failed(source: str, within_s: float) -> str | None:
+    """Circuit breaker: if the last call to ``source`` failed within ``within_s`` seconds (and nothing
+    succeeded since), return a short reason; callers then answer immediately instead of waiting for
+    another timeout. Simulated outages are handled by the chaos switch itself."""
+    with _lock:
+        st = _state.get(source)
+        if st is None or st.last_status in (None, "ok") or st.last_fetch_at is None:
+            return None
+        age = (utcnow() - st.last_fetch_at).total_seconds()
+        if age > within_s or (st.last_ok_at and st.last_ok_at >= st.last_fetch_at):
+            return None
+        return f"{st.last_error or st.last_status} ({int(age)} s ago)"
 
 
 def set_model_run(source: str, run: str | None) -> None:

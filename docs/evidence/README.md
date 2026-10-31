@@ -12,7 +12,10 @@ Numbers are what the live sources reported at that time; they will differ on any
 | `04-planner-retrieval-only-puducherry-live.png` | Planner run for Puducherry with **no LLM key** configured: live assessment, live SACHET check, real retrieval from the ingested *Puducherry Disaster Management Action Plan 2023*, the Overpass outage surfaced as a tool error, and the honest "temporarily unavailable" state. |
 | `05-sources-live.png` | Sources panel with live statuses, latencies and model-run time from `meta.json`; failures (rate limits / blocked hosts in the build environment) shown as failures. |
 | `06-plans-ingested-live.png` | Knowledge base with the real GCC City Disaster Management Perspective Plan 2025 (805 pages → 4,601 chunks) and the Puducherry DM Action Plan 2023 (396 pages → 1,726 chunks), with SHA-256 and source URLs. |
+| `07-gemini-agent-plan-chennai-live.png` | **Full agent run on a real LLM** (Gemini, served by gemini-3.6-flash) against the 805-page GCC plan: 13 tool calls; VERIFY rejected attempt 1 ("A6: location … not in the plan text") and attempt 2 passed — 9 actions, 9 verbatim citations (pp. 24–718), countdown-phased, each with Approve / Edit / Reject. (The attempt-1 rejection exposed a whitespace bug in the verifier's name check, since fixed with a regression test.) |
+| `08-gemini-agent-plan-puducherry-live.png` | Agent run for Puducherry against the real DM Action Plan 2023: 9 actions verified on the first attempt (pp. 27–351); when the facility lookup timed out the agent adapted on its own; gaps listed as "Not found in district plan". |
+| `09-citation-verbatim-quote-live.png` | Citation modal: the quote highlighted inside the actual text of GCC CDMP 2025 page 24. |
 
-What could **not** be shown live from the build environment: the LLM-drafted plan (no `ANTHROPIC_API_KEY` there),
-OpenStreetMap facilities (every Overpass mirror timed out through that network), and TNSDMA-hosted district plans
-(host blocked there). Capture those on the deployed system.
+Not shown live from the build environment: OpenStreetMap facilities (every Overpass mirror timed out through that
+network), TNSDMA-hosted district plans (host blocked there), and a public-message/CAP draft (no district crossed
+30% probability that day, so — correctly — none was drafted). Capture those on the deployed system.

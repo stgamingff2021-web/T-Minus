@@ -15,7 +15,8 @@ os.environ.setdefault("SECRET_KEY", "test-secret-key-test-secret-key-0123456789"
 os.environ.setdefault("OFFICER_PASSCODE", "officer-pass")
 os.environ.setdefault("ADMIN_PASSCODE", "admin-pass")
 os.environ.setdefault("EMBEDDING_BACKEND", "tfidf")
-os.environ.setdefault("ANTHROPIC_API_KEY", "")
+os.environ["ANTHROPIC_API_KEY"] = ""  # tests never call a real LLM
+os.environ["GEMINI_API_KEY"] = ""
 _tmp = tempfile.mkdtemp(prefix="tminus-test-")
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/boot.db")
 os.environ.setdefault("DATA_DIR", _tmp)

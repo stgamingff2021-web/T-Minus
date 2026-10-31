@@ -45,6 +45,11 @@ class Settings(BaseSettings):
     auto_plan_min_level: str = "PREPARE"  # agent runs automatically for triggers at/above this level
 
     # --- LLM (provider-agnostic interface, §9.4) ---
+    llm_provider: str = "auto"           # auto | anthropic | gemini
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-3.5-flash"
+    gemini_backup_model: str = "gemini-flash-lite-latest"
+    gemini_timeout_s: float = 180.0
     anthropic_api_key: str = ""
     llm_model: str = "claude-opus-5-5"
     llm_backup_model: str = "claude-sonnet-5-5"

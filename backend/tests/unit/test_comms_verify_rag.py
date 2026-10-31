@@ -220,3 +220,15 @@ def test_as_issued_series_never_uses_runs_after_the_replay_clock():
     # the run that produced previous_dayN at v was issued at least N*24 h before v, i.e. <= as_of
     for v, n in zip(valid, out):
         assert v - n * 24 * H <= as_of
+
+
+def test_location_names_match_across_pdf_line_breaks():
+    """Regression from a live run: the GCC plan prints 'Thiru – vi – ka\n-nagar zone'."""
+    chunk = {**CHUNK, "chunk_id": "doc2:p432:c1", "page": 432,
+             "text": "There are 3 subways located at Ganesapuram and 2 at Perambur in Thiru – vi – ka\n-nagar zone."}
+    c = ctx()
+    c.chunks = {chunk["chunk_id"]: chunk}
+    a = action(location_refs=["Thiru – vi – ka -nagar"], citations=[{"chunk_id": chunk["chunk_id"],
+                "quote": "There are 3 subways located at Ganesapuram and 2 at Perambur"}])
+    r = verify_plan(plan(a), c)
+    assert not [p for p in r.problems if p.check == "facility"], r.feedback()

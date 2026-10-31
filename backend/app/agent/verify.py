@@ -122,11 +122,21 @@ def _facility_candidates(text: str) -> list[str]:
 
 
 def _name_known(name: str, corpus_texts: list[str], names: list[str]) -> bool:
-    n = name.lower()
+    """Is a place/facility name present in the plan text or the OSM/geocoder names?
+
+    Whitespace-insensitive (PDF extraction breaks lines mid-name: "Thiru – vi – ka\n-nagar"),
+    and tolerant of spacing around hyphens/dashes.
+    """
+    def squash(x: str) -> str:
+        return re.sub(r"\s*([-–—])\s*", r"\1", norm_ws(x).lower())
+
+    n = squash(name)
+    if not n:
+        return False
     for t in corpus_texts:
-        if n in t.lower():
+        if n in squash(t):
             return True
-    return any(fuzz.token_set_ratio(n, (x or "").lower()) >= 90 for x in names if x)
+    return any(fuzz.token_set_ratio(n, squash(x or "")) >= 90 for x in names if x)
 
 
 def verify_plan(draft: dict, ctx: VerifyContext, *, schema_model=None) -> Report:

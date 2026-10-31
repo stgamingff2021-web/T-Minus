@@ -16,7 +16,7 @@ Built for the **Forge Gen AI Buildathon · Theme 2: Climate, Resource Infrastruc
 |---|---|
 | **Live risk scanner** | Every hour (cached per model run) it fetches the ECMWF 51-member ensemble for every monitored district, the GloFAS river forecast, rainfall of the past 72 h, and NDMA SACHET official alerts. |
 | **Probabilistic triggers** | Code computes, for each district, *P(24-h rain ≥ IMD threshold within W hours)* = members that exceed ÷ valid members — e.g. **74.5% (38 of 51 forecasts)** — then maps it to WATCH / PREPARE / ACT with official-alert floors, a +1 escalation cap (saturated ground, compound river hazard), disagreement flags, and hysteresis counted in **new model runs**. |
-| **Agent planner** | A LangGraph state graph (ASSESS → GATHER → PLAN → VERIFY → COMMUNICATE) reads the district's own Disaster Management Plan with hybrid retrieval and drafts actions phased against the countdown (Do now · T-48h · T-24h · T-6h). |
+| **Agent planner** | A LangGraph state graph (ASSESS → GATHER → PLAN → VERIFY → COMMUNICATE) reads the district's own Disaster Management Plan with hybrid retrieval and drafts actions phased against the countdown (Do now · T-48h · T-24h · T-6h). One provider-agnostic LLM interface: **Claude** (Anthropic SDK) or **Gemini** (REST), primary + backup. |
 | **Self-verification** | Deterministic code rejects any draft whose quote is not an **exact substring** of the cited page, whose numbers were not produced by code or the documents, whose facilities do not exist in the plan or OpenStreetMap, or whose phase has already passed — and sends specific feedback back (“A4: quote not found on p. 117”). |
 | **Live trace** | Every step, tool call, retry and verification result streams to the UI over SSE. |
 | **Human approval** | Officers approve / edit / reject every action and message. Publishing needs a two-step confirmation token. Append-only audit log. Nothing is ever sent to SMS, SACHET or government systems. |
@@ -34,6 +34,7 @@ Run against the real public APIs — screenshots in [`docs/evidence/`](docs/evid
 * **SACHET:** per-state CAP feeds (`rss_tamil`, `rss_puducherry`, …) parsed; real IMD Chennai nowcasts matched to districts by name.
 * **Knowledge base:** GCC City Disaster Management Perspective Plan 2025 (805 pages → 4,601 chunks) and Puducherry DM Action Plan 2023 (396 pages → 1,726 chunks) ingested from their official URLs; hybrid retrieval returns the right pages and answers "not found" for off-topic queries.
 * **Boundaries:** 44/44 districts from OpenStreetMap (via Nominatim). **CAP XSD:** byte-identical to the OASIS original.
+* **Agent on a real LLM (Gemini):** full ASSESS → GATHER → PLAN → VERIFY → COMMUNICATE runs for Chennai and Puducherry on real plans — the model chose its own plan searches, adapted when a tool timed out, VERIFY rejected a draft and the retry passed; every action carries a verbatim quote with its page (`docs/evidence/07–09`).
 * Bugs found only by live data and fixed: river points snapped to the real GloFAS channel, lightning nowcasts no longer act as orange floors, rate-limit (429) handling, table-of-contents pages excluded from retrieval, a replay-endpoint event-loop crash, per-tool timeouts.
 
 > **Open-Meteo quotas:** the free tier is limited per IP per minute and per day, and multi-decade requests (river baselines, replay) count as many calls. Run `compute_river_baselines` once (it waits out per-minute limits) and keep the database between deploys.
@@ -89,7 +90,7 @@ git clone https://github.com/stgamingff2021-web/T-Minus.git
 cd T-Minus && cp .env.example .env
 ```
 
-Edit `.env`: set `SECRET_KEY` (32+ random characters), `OFFICER_PASSCODE`, `ADMIN_PASSCODE`, and `ANTHROPIC_API_KEY` for the agent (optional — without it the planner runs in retrieval-only mode). Then:
+Edit `.env`: set `SECRET_KEY` (32+ random characters), `OFFICER_PASSCODE`, `ADMIN_PASSCODE`, and an LLM key for the agent — `GEMINI_API_KEY` (Google AI Studio) and/or `ANTHROPIC_API_KEY` (optional: without one the planner runs in retrieval-only mode). Then:
 
 ```bash
 cd backend && python -m venv .venv && . .venv/bin/activate && pip install -r requirements-dev.txt
@@ -142,7 +143,7 @@ The image builds the dashboard, installs PDF fonts (incl. Noto Sans Tamil) and T
 cd backend && python -m pytest -q -m "not live"
 ```
 
-76 tests: unit tests for every pure function (rolling accumulation, probability incl. the spec's 38/51 worked example, t\*, onset, level rules, +1 escalation cap, disagreement, hysteresis by model run, SMS segment counting, probability wording, CAP builder + XSD, verbatim-citation checker, number/facility/phase checks, chunker, SACHET parsing, replay no-look-ahead) and integration tests that drive a **full scan** and a **full agent run** (with a scripted LLM double) through mocked HTTP — covering trigger dedupe, stand-down, ECMWF→GFS fallback, all-sources-down, official floors, VERIFY rejection and retry, the approval gate, CAP validity, the audit log, replay without look-ahead, officer stand-down → CAP Cancel, and garbage input (AC-14).
+82 tests: unit tests for every pure function (rolling accumulation, probability incl. the spec's 38/51 worked example, t\*, onset, level rules, +1 escalation cap, disagreement, hysteresis by model run, SMS segment counting, probability wording, CAP builder + XSD, verbatim-citation checker, number/facility/phase checks, chunker, SACHET parsing, replay no-look-ahead) and integration tests that drive a **full scan** and a **full agent run** (with a scripted LLM double) through mocked HTTP — covering trigger dedupe, stand-down, ECMWF→GFS fallback, all-sources-down, official floors, VERIFY rejection and retry, the approval gate, CAP validity, the audit log, replay without look-ahead, officer stand-down → CAP Cancel, and garbage input (AC-14).
 
 ```bash
 python -m pytest -q -m live tests/integration/test_live_sources.py
@@ -196,7 +197,8 @@ All errors share one shape: `{ "error": { "code", "message", "source", "retryabl
 * GloFAS (~5 km) represents large rivers far better than Chennai's small urban channels; rainfall is the primary trigger and the river signal is supporting evidence (shown in the UI).
 * Replay uses **multi-model agreement** from deterministic runs archived as issued (ensemble members are not archived); it is labelled as such and is not identical to a live 51-member probability. Coverage depends on Open-Meteo's archive (Fengal 2024 is covered; Michaung 2023 may not be).
 * SACHET publishes no colour code and keeps polygons behind a firewall, so district matching relies on the area names in each alert; thunderstorm/lightning nowcasts are informational, only heavy-rain/flood/cyclone alerts act as floors.
-* Without `ANTHROPIC_API_KEY` the planner runs in retrieval-only mode. Without `ORS_API_KEY` safe routes are disabled (reported in the Sources panel).
+* Without an LLM key the planner runs in retrieval-only mode. Without `ORS_API_KEY` safe routes are disabled (reported in the Sources panel).
+* Gemini free tier latency: on 2026-10-31 a full agent run took 3–4.5 minutes with `gemini-3.5-flash` (`gemini-flash-lite-latest` answers in ~1 s; set `GEMINI_MODEL` to trade quality for speed). The 120 s soft timeout then skips the optional critic pass.
 * Tamil UI labels and the Tamil wording hints need native-speaker review; all Tamil public messages are reviewed by an officer before publication.
 * See [`docs/assumptions.md`](docs/assumptions.md) and [`docs/decisions.md`](docs/decisions.md).
 

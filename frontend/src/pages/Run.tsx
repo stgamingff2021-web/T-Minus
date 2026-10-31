@@ -50,7 +50,7 @@ export default function Run() {
           <div className="small muted">started {istTime(run.started_at, true)} by {run.started_by} · model {run.model || "—"} · {run.tool_calls} tool calls · {run.attempts} plan attempt(s)</div>
         </div>
         {plan?.level && <LevelBadge level={plan.level} big />}
-        {tStar && <div className="big-cd"><Countdown target={tStar} /><small>TO EXPECTED IMPACT</small></div>}
+        {tStar && (trigger || (plan?.level && plan.level !== "QUIET")) && <div className="big-cd"><Countdown target={tStar} /><small>TO EXPECTED IMPACT</small></div>}
         <span className={`pill right ${run.status === "completed" ? "ok" : run.status === "running" ? "info" : "warn"}`} style={{ fontSize: 13 }}>{run.status.toUpperCase()}</span>
       </div>
 

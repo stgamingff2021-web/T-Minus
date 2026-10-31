@@ -22,6 +22,7 @@ Team names · Forge Gen AI Buildathon · Theme 2
 ## Slide 4 — Architecture and innovation
 * Code computes, the LLM reasons: tested ensemble maths; the agent never sees raw members and never produces a number
 * LangGraph state graph with a deterministic VERIFY: exact-substring citations, number provenance, facility existence, phase sanity → specific retry feedback
+* Provider-agnostic LLM layer: Claude or Gemini, primary + backup, one neutral history the adapters convert
 * Hybrid retrieval (BM25 + vectors + RRF) with a "not found" gate
 * Every number traceable to the stored raw API response ("Recompute from raw")
 * Chaos switch + honest failure states; replay with forecasts *as issued* (no look-ahead)
@@ -29,7 +30,8 @@ Team names · Forge Gen AI Buildathon · Theme 2
 ## Slide 5 — Results
 * Live: **[N]** districts scanned in **[s]** s; current levels **[from command map]**
 * Replay, Cyclone Fengal — Viluppuram (forecasts as issued by 8 global models): **PREPARE would have fired 30 h before the 394.7 mm/24 h peak** (WATCH 48 h, ACT 24 h); quiet-period false alarms: **none** — measured 2026-10-31, see `docs/evidence/03-replay-fengal-live.png`
-* 76 automated tests incl. VERIFY rejection/retry, approval gate, CAP XSD validity
+* Agent on real plans with a real LLM (Gemini, 2026-10-31): Chennai — 805-page GCC plan, VERIFY rejected the first draft and the retry passed, 9 actions all quoting the plan verbatim (pp. 24–718); Puducherry — 9 verified actions on the first try (`docs/evidence/07–09`)
+* 82 automated tests incl. VERIFY rejection/retry, approval gate, CAP XSD validity, Gemini adapter
 
 ## Slide 6 — Roadmap and ask
 * Humid-heat (WBGT) plug-in on the same engine → heat action plans
@@ -57,3 +59,4 @@ Team names · Forge Gen AI Buildathon · Theme 2
 * Open with the Sources page to show data is live; keep `/api/health` open in a second tab.
 * If no district is above WATCH, show the all-clear state (it's real), run the planner manually on a district, then show Replay.
 * Log in as admin before the demo (chaos switch). Never present a recording as the live system.
+* A full agent run takes 3–4.5 min on Gemini's free tier (`gemini-3.5-flash`): start the planner run before you begin talking, or set `GEMINI_MODEL=gemini-flash-lite-latest` for a fast run (lower quality).

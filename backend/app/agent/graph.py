@@ -281,6 +281,9 @@ async def node_assess(state: AgentState, config) -> dict:
     if not retrieve.district_has_plan(ctx.district_id):
         warnings.append("No district plan available for this district — upload the official DDMP. Only labelled NDMA "
                         "generic guidance can be cited.")
+    if card.get("status") != "no_assessment" and (card.get("headline") or {}).get("t_minus_h") is None:
+        warnings.append("No expected impact time (no ensemble member reaches the threshold): T-48h / T-24h / T-6h are "
+                        "relative readiness steps, not anchored to a forecast.")
     ctx.emit("step", {"node": "ASSESS", "status": "done", "ms": int((time.perf_counter() - t0) * 1000),
                       "summary": summary, "level": level})
     return {"assessment": card if card.get("status") != "no_assessment" else None, "official_alerts": alerts,
@@ -318,7 +321,7 @@ async def node_gather(state: AgentState, config) -> dict:
             res = await ctx.llm.chat(system=prompts.GATHER.format(remaining=remaining), messages=messages,
                                      tools=claude_tools(GATHER_TOOLS), max_tokens=8000, effort="medium")
             ctx.account(res)
-            messages.append({"role": "assistant", "content": res.content})
+            messages.append({"role": "assistant", "content": res.content, "provider": res.provider})
             if res.stop_reason == "pause_turn":
                 continue
             if not res.tool_uses:
@@ -330,8 +333,8 @@ async def node_gather(state: AgentState, config) -> dict:
                     out = await call_tool(ctx.tools, tu["name"], tu["input"] or {})
                 except BudgetExceeded as exc:
                     out = {"status": "error", "message": f"{exc}; finish gathering now."}
-                results.append({"type": "tool_result", "tool_use_id": tu["id"], "content": wrap(tu["name"], out),
-                                "is_error": out.get("status") == "error"})
+                results.append({"type": "tool_result", "tool_use_id": tu["id"], "name": tu["name"],
+                                "content": wrap(tu["name"], out), "is_error": out.get("status") == "error"})
             messages.append({"role": "user", "content": results})
     except (LLMUnavailable, LLMRefused) as exc:
         ctx.emit("error", {"node": "GATHER", "message": f"LLM failed: {exc}. Falling back to retrieval-only mode."})
@@ -382,7 +385,7 @@ async def node_plan(state: AgentState, config) -> dict:
         return {"attempt": attempt, "draft_plan": state.get("draft_plan"), "errors": [*state.get("errors", []), str(exc)],
                 "status": "failed" if not state.get("draft_plan") else state.get("status", "running")}
     ctx.account(res)
-    ctx.plan_messages.append({"role": "assistant", "content": res.content})
+    ctx.plan_messages.append({"role": "assistant", "content": res.content, "provider": res.provider})
     draft = res.parsed if isinstance(res.parsed, dict) else {}
     ctx.emit("step", {"node": "PLAN", "status": "done", "attempt": attempt, "ms": int((time.perf_counter() - t0) * 1000),
                       "actions": len(draft.get("actions") or [])})
@@ -477,7 +480,7 @@ async def node_communicate(state: AgentState, config) -> dict:
             break
         if attempt == 1:
             ctx.emit("retry", {"kind": "comms", "message": "; ".join(problems)})
-            msgs += [{"role": "assistant", "content": res.content},
+            msgs += [{"role": "assistant", "content": res.content, "provider": res.provider},
                      {"role": "user", "content": "Fix these problems and return all fields again:\n" + "\n".join(f"- {x}" for x in problems)}]
     comms.update({"drafted": bool(draft), "draft": draft, "problems": problems, "wording": wording,
                   "probability": p, "en_count": sms.count(draft.get("sms_en", "")).as_dict() if draft else None,

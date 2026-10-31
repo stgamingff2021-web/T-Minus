@@ -281,6 +281,12 @@ async def t_find_facilities(ctx: ToolContext, args: dict) -> dict:
         if cached and (utcnow() - _aware(cached.fetched_at)).total_seconds() < 24 * 3600:
             feats, fetch_id, cached_flag = cached.features, cached.fetch_id, True
     if feats is None:
+        from app.sources import registry as _reg
+
+        broken = _reg.recently_failed("overpass", 300)
+        if broken:
+            return {"status": "error", "message": f"OpenStreetMap facilities unavailable — Overpass failed {broken}; "
+                                                  "circuit open for 5 minutes. Proceed without facility data."}
         box = district_box(d_cfg, boundary)
         res, feats_all = await fetch_facilities(types, bbox=box)
         feats = [f for f in feats_all if contains(boundary, f["lat"], f["lon"], d_cfg) is not False]

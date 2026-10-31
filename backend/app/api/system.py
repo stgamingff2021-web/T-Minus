@@ -56,7 +56,7 @@ def health():
                       "districts_failed": len((ls.summary or {}).get("districts_failed") or [])} if ls else None,
         "scans_total": n_scans,
         "llm_configured": llm_configured(),
-        "llm_model": get_settings().llm_model if llm_configured() else None,
+        "llm_model": _llm_label(),
         "embedding_backend": embed.backend_name() if n_docs else get_settings().embedding_backend,
         "plan_documents": n_docs,
         "boundaries_loaded": len(boundaries),
@@ -64,6 +64,15 @@ def health():
         "chaos": registry.chaos_sources(),
         "login_configured": bool(get_settings().officer_passcode or get_settings().admin_passcode),
     }
+
+
+def _llm_label() -> str | None:
+    from app.agent.llm import get_llm
+
+    llm = get_llm()
+    if llm is None:
+        return None
+    return llm.primary.name + (f" (backup {llm.backup.name})" if llm.backup else "")
 
 
 @router.get("/sources")

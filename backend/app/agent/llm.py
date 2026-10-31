@@ -1,7 +1,7 @@
-"""Provider-agnostic LLM interface (spec §9.4) with a Claude implementation.
+"""Provider-agnostic LLM interface (spec §9.4): Claude and Gemini implementations.
 
-The agent only talks to :class:`LLMClient`. ``AnthropicLLM`` implements it with the
-official Anthropic SDK:
+The agent only talks to :class:`LLMClient`. ``GeminiLLM`` (``llm_gemini.py``) implements it
+with Google's Gemini REST API. ``AnthropicLLM`` implements it with the official Anthropic SDK:
 
 * model ``LLM_MODEL`` (default ``claude-opus-5-5``), adaptive thinking with summarised
   reasoning (streamed into the live trace), effort from ``LLM_EFFORT``;
@@ -49,6 +49,7 @@ class LLMResult:
     thinking: list[str] = field(default_factory=list)
     duration_ms: int = 0
     parsed: Any = None
+    provider: str = "anthropic"
 
 
 class LLMClient(Protocol):
@@ -59,7 +60,36 @@ class LLMClient(Protocol):
                    effort: str | None = None) -> LLMResult: ...
 
 
+def to_anthropic_messages(messages: list[dict]) -> list[dict]:
+    """Neutral agent history -> Claude Messages API format.
+
+    Strips bookkeeping keys (``provider`` on assistant turns, ``name`` on tool results) and
+    converts turns produced by another provider (after a failover) into text/tool_use blocks.
+    """
+    out = []
+    for m in messages:
+        role, content = m.get("role"), m.get("content")
+        if role == "assistant" and m.get("provider") not in (None, "anthropic"):
+            blocks = []
+            for i, p in enumerate(content or []):
+                if p.get("text") and not p.get("thought"):
+                    blocks.append({"type": "text", "text": p["text"]})
+                elif "functionCall" in p:
+                    fc = p["functionCall"]
+                    blocks.append({"type": "tool_use", "id": fc.get("id") or f"call_{i}_{fc.get('name')}",
+                                   "name": fc.get("name"), "input": fc.get("args") or {}})
+            out.append({"role": "assistant", "content": blocks or [{"type": "text", "text": "(no content)"}]})
+            continue
+        if role == "user" and isinstance(content, list):
+            content = [{k: v for k, v in b.items() if k != "name"} if b.get("type") == "tool_result" else b
+                       for b in content]
+        out.append({"role": role, "content": content})
+    return out
+
+
 class AnthropicLLM:
+    provider = "anthropic"
+
     def __init__(self, model: str, registry_key: str, api_key: str, timeout_s: float):
         import anthropic
 
@@ -84,7 +114,7 @@ class AnthropicLLM:
             model=self.model,
             max_tokens=max_tokens,
             system=system,
-            messages=messages,
+            messages=to_anthropic_messages(messages),
             thinking={"type": "adaptive", "display": "summarized"},
             output_config=output_config,
             betas=[FALLBACK_BETA],
@@ -180,17 +210,50 @@ class FailoverLLM:
 
 
 def llm_configured() -> bool:
-    return bool(get_settings().anthropic_api_key)
+    s = get_settings()
+    return bool(s.anthropic_api_key or s.gemini_api_key)
+
+
+def _provider_order() -> list[str]:
+    s = get_settings()
+    pref = (s.llm_provider or "auto").lower()
+    have = [p for p, key in (("anthropic", s.anthropic_api_key), ("gemini", s.gemini_api_key)) if key]
+    if pref in ("anthropic", "gemini"):
+        return [pref] if pref in have else []
+    return have  # auto: Claude first when both keys exist, else whichever is configured
 
 
 def get_llm() -> FailoverLLM | None:
+    """Primary + backup behind one interface (spec §9.4).
+
+    * only Claude:  LLM_MODEL, backup LLM_BACKUP_MODEL
+    * only Gemini:  GEMINI_MODEL, backup GEMINI_BACKUP_MODEL
+    * both (auto):  Claude primary, Gemini backup — survives a whole-provider outage
+    """
+    from app.agent.llm_gemini import GeminiLLM
+
     s = get_settings()
-    if not s.anthropic_api_key:
-        registry.set_disabled("llm:primary", "ANTHROPIC_API_KEY not set")
-        registry.set_disabled("llm:backup", "ANTHROPIC_API_KEY not set")
+    order = _provider_order()
+    if not order:
+        registry.set_disabled("llm:primary", "No LLM key set (ANTHROPIC_API_KEY or GEMINI_API_KEY)")
+        registry.set_disabled("llm:backup", "No LLM key set (ANTHROPIC_API_KEY or GEMINI_API_KEY)")
         return None
-    primary = AnthropicLLM(s.llm_model, "llm:primary", s.anthropic_api_key, s.llm_timeout_s)
+
+    def make(provider: str, model: str, key: str):
+        if provider == "anthropic":
+            return AnthropicLLM(model, key, s.anthropic_api_key, s.llm_timeout_s)
+        return GeminiLLM(model, key, s.gemini_api_key, s.gemini_timeout_s)
+
+    primary_provider = order[0]
+    primary = make(primary_provider, s.llm_model if primary_provider == "anthropic" else s.gemini_model, "llm:primary")
     backup = None
-    if s.llm_backup_model and s.llm_backup_model != s.llm_model:
-        backup = AnthropicLLM(s.llm_backup_model, "llm:backup", s.anthropic_api_key, s.llm_timeout_s)
+    if len(order) > 1:
+        other = order[1]
+        backup = make(other, s.llm_model if other == "anthropic" else s.gemini_model, "llm:backup")
+    else:
+        bmodel = s.llm_backup_model if primary_provider == "anthropic" else s.gemini_backup_model
+        if bmodel and bmodel != primary.name:
+            backup = make(primary_provider, bmodel, "llm:backup")
+    registry.set_disabled("llm:primary", None)
+    registry.set_disabled("llm:backup", None if backup else "no backup model configured")
     return FailoverLLM(primary, backup)
