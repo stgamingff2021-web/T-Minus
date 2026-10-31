@@ -16,7 +16,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app import errors, notify, scheduler
-from app.api import districts, plans, replay, runs, system
+from app.api import districts, plandb, plans, replay, runs, system
 from app.config import get_config, get_settings
 from app.db.session import init_db
 from app.sources import registry
@@ -46,6 +46,9 @@ async def lifespan(app: FastAPI):
 
     get_llm()  # registers disabled status when no key
     notify.bind_loop(asyncio.get_running_loop())
+    from app.plandb import store as plandb_store
+
+    plandb_store.start_backfill()
     scheduler.start()
     log.info("T-Minus started: %d districts, scheduler=%s", len(get_config().districts), settings.scheduler_enabled)
     yield
@@ -74,7 +77,7 @@ def create_app() -> FastAPI:
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         return response
 
-    for r in (system.router, districts.router, runs.router, plans.router, replay.router):
+    for r in (system.router, districts.router, runs.router, plans.router, replay.router, plandb.router):
         app.include_router(r)
 
     dist: Path = settings.frontend_dist

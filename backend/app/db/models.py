@@ -349,3 +349,107 @@ class ScanRun(Base):
     status: Mapped[str] = mapped_column(String(16), default="running")
     summary: Mapped[dict] = mapped_column(JSON, default=dict)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+# ---------------------------------------------------------------------------------------------
+# Features 1-6. New tables only, so an existing database upgrades through create_all with no
+# migration step.
+
+
+class PlanRecord(Base):
+    """Feature 1: one structured fact extracted from a plan page, with its verbatim quote."""
+
+    __tablename__ = "plan_records"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    document_id: Mapped[str] = mapped_column(ForeignKey("plan_documents.id", ondelete="CASCADE"), index=True)
+    district_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    kind: Mapped[str] = mapped_column(String(16), index=True)  # contact|shelter|resource|responsibility|procedure|asset
+    label: Mapped[str] = mapped_column(Text)
+    fields: Mapped[dict] = mapped_column(JSON, default=dict)
+    page: Mapped[int] = mapped_column(Integer)
+    quote: Mapped[str] = mapped_column(Text)
+
+
+class PlanStructure(Base):
+    """Which documents have been structured, by which extractor version."""
+
+    __tablename__ = "plan_structure"
+    document_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    version: Mapped[int] = mapped_column(Integer)
+    extracted_at: Mapped[dt.datetime] = mapped_column(default=utcnow)
+    counts: Mapped[dict] = mapped_column(JSON, default=dict)
+    malformed_numbers: Mapped[list] = mapped_column(JSON, default=list)
+
+
+class ActionTask(Base):
+    """Feature 6: execution tracking for an approved action."""
+
+    __tablename__ = "action_tasks"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=lambda: new_id("task"))
+    action_id: Mapped[str] = mapped_column(String(32), unique=True, index=True)
+    run_id: Mapped[str] = mapped_column(String(32), index=True)
+    district_id: Mapped[str] = mapped_column(String(64), index=True)
+    department: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    # pending | in_progress | completed | blocked | cancelled
+    status: Mapped[str] = mapped_column(String(16), default="pending", index=True)
+    due_at: Mapped[dt.datetime | None] = mapped_column(nullable=True)
+    blocker: Mapped[str | None] = mapped_column(Text, nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[dt.datetime] = mapped_column(default=utcnow)
+    updated_at: Mapped[dt.datetime] = mapped_column(default=utcnow)
+    updated_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    completed_at: Mapped[dt.datetime | None] = mapped_column(nullable=True)
+
+
+class ReadinessCheck(Base):
+    """Feature 3: can an action be carried out? One row per (action, requirement)."""
+
+    __tablename__ = "readiness_checks"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    action_id: Mapped[str] = mapped_column(String(32), index=True)
+    requirement: Mapped[str] = mapped_column(String(32))
+    status: Mapped[str] = mapped_column(String(16))  # ready | unavailable | unverified
+    reason: Mapped[str] = mapped_column(Text, default="")
+    evidence: Mapped[list] = mapped_column(JSON, default=list)
+    checked_at: Mapped[dt.datetime] = mapped_column(default=utcnow)
+    verified_by: Mapped[str | None] = mapped_column(String(128), nullable=True)  # officer confirmation
+    verified_at: Mapped[dt.datetime | None] = mapped_column(nullable=True)
+
+
+class ImpactAssessment(Base):
+    """Feature 2: where in the district the hazard is likely to hit hardest."""
+
+    __tablename__ = "impact_assessments"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=lambda: new_id("imp"))
+    district_id: Mapped[str] = mapped_column(String(64), index=True)
+    computed_at: Mapped[dt.datetime] = mapped_column(default=utcnow, index=True)
+    model_run_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    data: Mapped[dict] = mapped_column(JSON, default=dict)
+    fetch_ids: Mapped[list] = mapped_column(JSON, default=list)
+
+
+class TerrainPoint(Base):
+    """Ground elevation at a point (Copernicus DEM via Open-Meteo). Terrain does not change: cached forever."""
+
+    __tablename__ = "terrain_points"
+    key: Mapped[str] = mapped_column(String(32), primary_key=True)  # "lat,lon" at 4 decimals
+    lat: Mapped[float] = mapped_column(Float)
+    lon: Mapped[float] = mapped_column(Float)
+    elevation_m: Mapped[float | None] = mapped_column(Float, nullable=True)
+    fetch_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    fetched_at: Mapped[dt.datetime] = mapped_column(default=utcnow)
+
+
+class PlaceName(Base):
+    """Reverse geocode of a point (Nominatim), cached forever (usage policy)."""
+
+    __tablename__ = "place_names"
+    key: Mapped[str] = mapped_column(String(32), primary_key=True)
+    name: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    display_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    place_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    place_rank: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    population: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    osm_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    fetch_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    fetched_at: Mapped[dt.datetime] = mapped_column(default=utcnow)

@@ -144,6 +144,12 @@ def ingest_pdf(
                 embedding=embed.to_bytes(vectors[i]) if vectors is not None else None,
             ))
     retrieve.invalidate("generic" if kind == "generic" else retrieve.scope_for_district(district_id or ""))
+    try:
+        from app.plandb.store import build_document
+
+        build_document(doc_id)
+    except Exception:  # noqa: BLE001 - structuring is best-effort; the plan is ingested either way
+        log.exception("structuring %s failed", doc_id)
     return {
         "document_id": doc_id, "duplicate": False, "title": title, "pages": len(pages), "chunks": len(chunks),
         "sha256": sha, "ocr_pages": sorted(ocr_pages), "low_confidence_pages": low_conf,

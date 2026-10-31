@@ -80,6 +80,9 @@ async def upload_plan(
 def remove_plan(doc_id: str, user: User = Depends(admin_user)):
     if not delete_document(doc_id):
         raise APIError(404, "not_found", "Document not found")
+    from app.plandb.store import remove_document
+
+    remove_document(doc_id)
     with session_scope() as s:
         s.add(Approval(target_type="plan_document", target_id=doc_id, decision="delete", before=None, after=None,
                        user=user.name, role=user.role))
