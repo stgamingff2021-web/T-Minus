@@ -272,6 +272,10 @@ async def node_assess(state: AgentState, config) -> dict:
         warnings.append(f"Official alerts unavailable: {alerts.get('error')}")
     if card.get("degraded"):
         warnings.append("Ensemble data degraded (fewer valid members than required).")
+    if card.get("data_time"):
+        age_h = (dt.datetime.now(dt.timezone.utc) - dt.datetime.fromisoformat(card["data_time"])).total_seconds() / 3600
+        if age_h > float(get_config().hazards["rain"].get("max_data_age_h", 6)):
+            warnings.append(f"STALE data: the assessment was fetched {age_h:.1f} h ago; live sources could not be refreshed.")
     if card.get("sources_disagree"):
         warnings.append("Sources disagree (official alert vs ensemble); the more cautious level is used.")
     if not retrieve.district_has_plan(ctx.district_id):

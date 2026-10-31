@@ -245,4 +245,59 @@ def close_trigger(trigger_id: str, body: CloseBody, user: User = Depends(current
                                           "user": user.name}]
         s.add(Approval(target_type="trigger", target_id=t.id, decision="close", before=before, after="closed",
                        user=user.name, role=user.role, note=body.note))
-        return trigger_dict(t)
+        cancel = _publish_cancel(s, t, user, body.note)
+        out = trigger_dict(t)
+        out["cancel_cap"] = cancel
+        return out
+
+
+def _publish_cancel(s, t: Trigger, user: User, note: str | None) -> dict | None:
+    """Officer-confirmed stand-down: if an alert was published for this event, publish a CAP Cancel."""
+    from app.comms.cap import Area, InfoBlock, build_cap, validate_cap
+    from app.db.models import AgentRun, Communication, PublicAlert
+    from app.geo import cap_polygon
+
+    prev = s.execute(select(PublicAlert).where(PublicAlert.district_id == t.district_id, PublicAlert.hazard == t.hazard,
+                                               PublicAlert.published_at >= t.opened_at)
+                     .order_by(PublicAlert.published_at.desc())).scalars().first()
+    if prev is None or prev.msg_type == "Cancel":
+        return None
+    d_cfg = get_config().district(t.district_id)
+    d_row = s.get(District, t.district_id)
+    prev_cap = s.get(Communication, prev.cap_communication_id) if prev.cap_communication_id else None
+    import re as _re
+
+    def grab(tag):
+        m = _re.search(rf"<{tag}>([^<]+)</{tag}>", prev_cap.content if prev_cap else "")
+        return m.group(1) if m else None
+
+    refs = [",".join([grab("sender"), grab("identifier"), grab("sent")])] if prev_cap and all(
+        [grab("sender"), grab("identifier"), grab("sent")]) else None
+    now = utcnow()
+    msg_en = f"Stand-down: the earlier T-Minus exercise alert for {d_cfg.name} is cancelled by the district officer."
+    msg_ta = f"{d_cfg.name}: முந்தைய எச்சரிக்கை (பயிற்சி) மாவட்ட அதிகாரியால் ரத்து செய்யப்பட்டது."
+    info = dict(event="Rainfall alert cancelled", urgency="Past", severity="Minor", certainty="Unlikely", effective=now,
+                sender_name=f"T-Minus prototype for {d_cfg.name} DDMA (exercise)")
+    poly = cap_polygon(d_row.boundary if d_row else None)
+    xml = build_cap(identifier=f"TMINUS-{t.district_id}-{t.hazard}-{t.id}-cancel-{int(now.timestamp())}",
+                    sender="tminus-prototype", sent=now, msg_type="Cancel",
+                    infos=[InfoBlock("en-IN", headline="Alert cancelled (stand-down)", description=msg_en,
+                                     instruction=note or "No further action required.", **info),
+                           InfoBlock("ta-IN", headline="எச்சரிக்கை ரத்து", description=msg_ta,
+                                     instruction=note or "மேலும் நடவடிக்கை தேவையில்லை.", **info)],
+                    area=Area(desc=f"{d_cfg.name} district", polygon=poly,
+                              circle=None if poly else f"{d_cfg.hq[0]:.4f},{d_cfg.hq[1]:.4f} {get_config().search_radius_km(d_cfg):.0f}"),
+                    references=refs, note="PROTOTYPE EXERCISE: T-Minus decision-support output, not an official warning.")
+    val = validate_cap(xml)
+    if not val["valid"]:
+        return {"valid": False, "errors": val["errors"]}
+    comm = Communication(run_id=prev.run_id, kind="cap", content=xml, valid=True, status="published",
+                         validation={**val, "msg_type": "Cancel"})
+    s.add(comm)
+    s.flush()
+    s.add(PublicAlert(run_id=prev.run_id, district_id=t.district_id, hazard=t.hazard, level=t.level, msg_type="Cancel",
+                      message_en=msg_en, message_ta=msg_ta, cap_communication_id=comm.id, published_by=user.name,
+                      data_timestamps={}))
+    s.add(Approval(target_type="cap", target_id=comm.id, decision="publish_cancel", before=None, after=xml[:4000],
+                   user=user.name, role=user.role, note=note))
+    return {"valid": True, "communication_id": comm.id}

@@ -128,7 +128,7 @@ The image builds the dashboard, installs PDF fonts (incl. Noto Sans Tamil) and T
 cd backend && python -m pytest -q -m "not live"
 ```
 
-72 tests: unit tests for every pure function (rolling accumulation, probability incl. the spec's 38/51 worked example, t\*, onset, level rules, +1 escalation cap, disagreement, hysteresis by model run, SMS segment counting, probability wording, CAP builder + XSD, verbatim-citation checker, number/facility/phase checks, chunker, SACHET parsing, replay no-look-ahead) and integration tests that drive a **full scan** and a **full agent run** (with a scripted LLM double) through mocked HTTP — covering trigger dedupe, stand-down, ECMWF→GFS fallback, all-sources-down, official floors, VERIFY rejection and retry, the approval gate, CAP validity and the audit log.
+75 tests: unit tests for every pure function (rolling accumulation, probability incl. the spec's 38/51 worked example, t\*, onset, level rules, +1 escalation cap, disagreement, hysteresis by model run, SMS segment counting, probability wording, CAP builder + XSD, verbatim-citation checker, number/facility/phase checks, chunker, SACHET parsing, replay no-look-ahead) and integration tests that drive a **full scan** and a **full agent run** (with a scripted LLM double) through mocked HTTP — covering trigger dedupe, stand-down, ECMWF→GFS fallback, all-sources-down, official floors, VERIFY rejection and retry, the approval gate, CAP validity, the audit log, replay without look-ahead, officer stand-down → CAP Cancel, and garbage input (AC-14).
 
 ```bash
 python -m pytest -q -m live tests/integration/test_live_sources.py
