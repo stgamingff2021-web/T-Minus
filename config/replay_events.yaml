@@ -1,0 +1,59 @@
+# Replay events (spec §6.10). Configuration only: event names, places and the
+# date ranges to evaluate. Every number in a replay result is fetched live from
+# Open-Meteo's archive of forecasts AS ISSUED (Previous Runs API) and its
+# reanalysis archive (ground truth) — nothing here is a forecast or an observation.
+#
+# as_of_*:    the replay clock steps from as_of_start to as_of_end every step_h hours;
+#             at each step only forecasts issued at or before that time are used.
+# truth_*:    window searched for the observed peak 24-h rainfall (ground truth).
+# quiet_*:    a period of the same length used for the false-alarm check.
+
+models:
+  # Deterministic global models whose runs Open-Meteo archives as issued.
+  # Multi-model agreement = share of these models exceeding the threshold (labelled
+  # as such: it is NOT identical to a live ensemble probability).
+  - ecmwf_ifs025
+  - gfs_seamless
+  - icon_seamless
+  - gem_seamless
+  - jma_seamless
+  - meteofrance_seamless
+  - ukmo_seamless
+  - cma_grapes_global
+
+events:
+  - key: fengal_2024
+    name: Cyclone Fengal (landfall near Puducherry)
+    district: viluppuram
+    also_show: [puducherry, cuddalore, chennai]
+    as_of_start: "2024-11-24T00:00:00Z"
+    as_of_end: "2024-12-02T00:00:00Z"
+    step_h: 6
+    truth_start: "2024-11-25T00:00:00Z"
+    truth_end: "2024-12-03T00:00:00Z"
+    quiet_start: "2024-10-01T00:00:00Z"
+    quiet_end: "2024-10-09T00:00:00Z"
+    references:
+      - "IMD, Cyclone Fengal reports (Nov–Dec 2024)"
+
+  - key: fengal_2024_puducherry
+    name: Cyclone Fengal — Puducherry
+    district: puducherry
+    as_of_start: "2024-11-24T00:00:00Z"
+    as_of_end: "2024-12-02T00:00:00Z"
+    step_h: 6
+    truth_start: "2024-11-25T00:00:00Z"
+    truth_end: "2024-12-03T00:00:00Z"
+    quiet_start: "2024-10-01T00:00:00Z"
+    quiet_end: "2024-10-09T00:00:00Z"
+
+  - key: michaung_2023
+    name: Cyclone Michaung — Chennai (only if as-issued archives cover it)
+    district: chennai
+    as_of_start: "2023-11-27T00:00:00Z"
+    as_of_end: "2023-12-05T00:00:00Z"
+    step_h: 6
+    truth_start: "2023-11-28T00:00:00Z"
+    truth_end: "2023-12-06T00:00:00Z"
+    quiet_start: "2023-10-01T00:00:00Z"
+    quiet_end: "2023-10-09T00:00:00Z"

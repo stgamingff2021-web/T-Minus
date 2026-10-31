@@ -1,0 +1,108 @@
+# T-Minus hazard configuration (spec §5.4).
+#
+# These are PARAMETERS, not data. Every threshold carries its source, or is
+# explicitly marked "starting value" (tunable; calibrated with replay, §6.10;
+# results recorded in docs/decisions.md).
+
+rain:
+  # Rolling accumulation window used for every rainfall category.
+  accumulation_window_h: 24
+
+  # IMD 24-hour rainfall intensity categories (India Meteorological Department
+  # terminology: heavy 64.5–115.5 mm, very heavy 115.6–204.4 mm,
+  # extremely heavy >= 204.5 mm). Values are the lower bounds.
+  categories_mm:
+    heavy: 64.5
+    very_heavy: 115.6
+    extremely_heavy: 204.5
+
+  # Trigger rules. A level fires if ANY of its rules is met:
+  # P(24-h total >= category threshold somewhere within the next `within_h`) >= min_prob.
+  # Rule shape follows Forecast-based Financing practice: danger level + probability + lead time.
+  levels:
+    WATCH:
+      - { category: very_heavy, min_prob: 0.30, within_h: 120 }
+    PREPARE:
+      - { category: very_heavy, min_prob: 0.50, within_h: 72 }
+    ACT:
+      - { category: very_heavy, min_prob: 0.70, within_h: 48 }
+      - { category: extremely_heavy, min_prob: 0.40, within_h: 72 }
+
+  # Official-alert floor (§6.5 step 2): orange => at least PREPARE, red => ACT.
+  official_alert_floor: { orange: PREPARE, red: ACT }
+
+  escalation:
+    # Saturated ground: rain over the past 72 h >= this value escalates +1 level.
+    antecedent_rain_72h_mm: 100      # starting value; calibrate with replay
+    # Compound hazard: rain >= PREPARE and river >= WATCH in the same district => +1.
+    compound_with_river: true
+    # Escalation is capped at +1 level in total and only amplifies an existing signal
+    # (it never lifts Quiet to WATCH on its own) — see docs/assumptions.md A-07.
+    max_levels: 1
+
+  stand_down:
+    prob_margin: 0.15                # stand down below (entry threshold - margin)
+    consecutive_model_runs: 2        # counted in NEW model runs, never in scans
+
+  # Below this share of the model's members valid => assessment marked "degraded".
+  min_valid_member_share: 0.8
+
+  # §6.3: earliest plausible onset = first hour at which >= 10% of members exceed X.
+  onset_member_share: 0.10
+
+  # §8.1: no new triggers on data older than this (starting value).
+  max_data_age_h: 6
+
+  # Category used for the headline card, t* and T-minus when no rule has fired.
+  headline_category: very_heavy
+
+river:
+  # GloFAS v4 reanalysis baseline used to compute each river point's own P95/P99.
+  baseline:
+    source: glofas_reanalysis
+    start: "1984-01-01"
+    end: "2022-07-31"
+  levels:
+    WATCH:   { statistic: ensemble_max,    above_percentile: 95, within_days: 7 }
+    PREPARE: { statistic: ensemble_median, above_percentile: 95, within_days: 7 }
+    ACT:     { statistic: ensemble_median, above_percentile: 99, within_days: 5 }
+  # A point returning null discharge is retried at +/- this offset (degrees), §8.1.
+  nudge_deg: 0.1
+  caveat: >-
+    GloFAS is a ~5 km global model. It represents large rivers far better than small
+    urban channels such as Chennai's Adyar and Cooum. Urban flooding is driven mainly
+    by intense rainfall, so rainfall is the primary trigger and the river signal is
+    supporting evidence.
+
+heat:
+  # STRETCH (F10). Outdoor WBGT bands — starting values from US Army TB MED 507
+  # heat categories (confirm and cite before relying on them operationally).
+  bands_c:
+    WATCH: 29.4
+    PREPARE: 31.1
+    ACT: 32.2
+  min_prob: 0.5                      # starting value: share of members reaching the band
+  within_days: 5
+
+public_message:
+  # §6.9 probability wording, always shown together with the number.
+  wording:
+    - { min_prob: 0.70, inclusive: true,  phrase: "very likely" }
+    - { min_prob: 0.50, inclusive: false, phrase: "likely" }
+    - { min_prob: 0.30, inclusive: true,  phrase: "possible" }
+  # Below the lowest band no public message is drafted.
+  english_max_chars: 160             # one GSM-7 SMS
+  tamil_max_chars: 134               # two UCS-2 segments (2 x 67)
+
+agent:
+  max_tool_calls: 20
+  max_plan_attempts: 3               # initial + 2 retries
+  soft_timeout_s: 120
+  retrieval_k: 6
+  # Hybrid retrieval gate (starting values): a chunk is "found" if it covers this
+  # share of the query's content words OR its vector similarity reaches min_cosine.
+  retrieval_min_coverage: 0.34
+  retrieval_min_cosine: 0.45
+  retrieval_min_cosine_tfidf: 0.12
+  # Radius (m) of the small avoid-polygon drawn around each geocoded at-risk place.
+  at_risk_buffer_m: 400

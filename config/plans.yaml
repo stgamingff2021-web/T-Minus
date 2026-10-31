@@ -1,0 +1,70 @@
+# Official documents for the knowledge base (spec §5.2).
+#
+# Plan PDFs are NEVER committed to this repository. `backend/scripts/ingest_plans.py`
+# downloads each entry from its official source URL, records the file's SHA-256,
+# edition year and source URL for every chunk, and ingests it page by page.
+#
+# Entries with `source_url: null` are placeholders for documents whose exact PDF
+# link must be copied from the official landing page during setup (Phase 0) — the
+# portals below were not reachable from the build sandbox, so no link is guessed.
+# You can also upload an official PDF from the app (Plans page, POST /api/plans);
+# the uploader records the source URL you provide.
+#
+# kind: district (DDMP) | city (city disaster management plan) | generic (NDMA guideline)
+
+documents:
+  - key: chennai_ddmp
+    district: chennai
+    kind: district
+    title: Chennai District Disaster Management Plan
+    edition_year: null
+    source_url: null
+    landing_page: https://tnsdma.tn.gov.in/
+
+  - key: gcc_cdmp
+    district: chennai
+    kind: city
+    title: Greater Chennai Corporation City Disaster Management Perspective Plan
+    edition_year: null
+    source_url: null
+    landing_page: https://data.opencity.in/dataset/chennai-disaster-management-plans
+
+  - key: chengalpattu_ddmp
+    district: chengalpattu
+    kind: district
+    title: Chengalpattu District Disaster Management Plan
+    edition_year: null
+    source_url: null
+    landing_page: https://tnsdma.tn.gov.in/
+
+  - key: nagapattinam_ddmp
+    district: nagapattinam
+    kind: district
+    title: Nagapattinam District Disaster Management Plan
+    edition_year: null
+    source_url: null
+    landing_page: https://tnsdma.tn.gov.in/
+
+  - key: ndma_floods
+    district: null
+    kind: generic
+    title: NDMA National Disaster Management Guidelines — Management of Floods
+    edition_year: null
+    source_url: null
+    landing_page: https://ndma.gov.in/
+
+  - key: ndma_urban_floods
+    district: null
+    kind: generic
+    title: NDMA National Disaster Management Guidelines — Management of Urban Flooding
+    edition_year: null
+    source_url: null
+    landing_page: https://ndma.gov.in/
+
+  - key: ndma_heat
+    district: null
+    kind: generic
+    title: NDMA Guidelines for Preparation of Action Plan — Prevention and Management of Heat Wave
+    edition_year: null
+    source_url: null
+    landing_page: https://ndma.gov.in/

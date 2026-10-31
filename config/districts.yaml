@@ -1,0 +1,137 @@
+# Monitored districts (spec §5.3, §5.4).
+#
+# Configuration, not data: names, aliases and the coordinates of each district's
+# representative monitor point (the district headquarters town) plus up to three
+# points on major rivers. River coordinates are approximate river locations; the
+# GloFAS client nudges them by +/-0.1 deg if the ~5 km grid cell is not on a
+# modelled river (§8.1), and marks them "not on a modelled river" otherwise.
+#
+# Boundaries are NOT stored here: scripts/fetch_boundaries.py downloads them from
+# their published source (OpenStreetMap via Overpass, or geoBoundaries) with provenance.
+#
+# Fields: id (slug), name (official), state, aliases (alternate spellings used in
+# plans and feeds), hq [lat, lon], search_radius_km (facility search radius used
+# only when no boundary polygon is loaded), rivers (optional).
+
+defaults:
+  search_radius_km: 25
+
+states:
+  TN: Tamil Nadu
+  PY: Puducherry
+  KL: Kerala
+  AP: Andhra Pradesh
+  OR: Odisha
+  AS: Assam
+  MH: Maharashtra
+
+districts:
+  # ---------------- Tamil Nadu (all 38 districts) ----------------
+  - { id: ariyalur, name: Ariyalur, state: TN, aliases: [], hq: [11.140, 79.078] }
+  - id: chengalpattu
+    name: Chengalpattu
+    state: TN
+    aliases: [Chengalpet, Chingleput]
+    hq: [12.692, 79.977]
+    rivers:
+      - { name: Palar, lat: 12.640, lon: 80.030 }
+  - id: chennai
+    name: Chennai
+    state: TN
+    aliases: [Madras, Greater Chennai, Greater Chennai Corporation]
+    hq: [13.083, 80.270]
+    search_radius_km: 14
+    rivers:
+      - { name: Adyar, lat: 13.013, lon: 80.235 }
+      - { name: Cooum, lat: 13.072, lon: 80.260 }
+      - { name: Kosasthalaiyar, lat: 13.200, lon: 80.250 }
+  - { id: coimbatore, name: Coimbatore, state: TN, aliases: [Kovai], hq: [11.017, 76.956],
+      rivers: [{ name: Noyyal, lat: 10.990, lon: 76.960 }] }
+  - id: cuddalore
+    name: Cuddalore
+    state: TN
+    aliases: []
+    hq: [11.748, 79.768]
+    rivers:
+      - { name: Thenpennai, lat: 11.780, lon: 79.700 }
+      - { name: Vellar, lat: 11.480, lon: 79.700 }
+  - { id: dharmapuri, name: Dharmapuri, state: TN, aliases: [], hq: [12.127, 78.158],
+      rivers: [{ name: Cauvery (Hogenakkal), lat: 12.118, lon: 77.776 }] }
+  - { id: dindigul, name: Dindigul, state: TN, aliases: [Dindukkal], hq: [10.362, 77.980] }
+  - { id: erode, name: Erode, state: TN, aliases: [], hq: [11.341, 77.717],
+      rivers: [{ name: Cauvery, lat: 11.340, lon: 77.740 }, { name: Bhavani, lat: 11.440, lon: 77.680 }] }
+  - { id: kallakurichi, name: Kallakurichi, state: TN, aliases: [Kallakkurichi], hq: [11.738, 78.962] }
+  - { id: kancheepuram, name: Kancheepuram, state: TN, aliases: [Kanchipuram, Kanchi], hq: [12.834, 79.703],
+      rivers: [{ name: Palar, lat: 12.790, lon: 79.820 }] }
+  - { id: kanniyakumari, name: Kanniyakumari, state: TN, aliases: [Kanyakumari, Nagercoil], hq: [8.178, 77.412] }
+  - { id: karur, name: Karur, state: TN, aliases: [], hq: [10.960, 78.077],
+      rivers: [{ name: Cauvery (Mayanur), lat: 10.950, lon: 78.200 }] }
+  - { id: krishnagiri, name: Krishnagiri, state: TN, aliases: [], hq: [12.519, 78.214],
+      rivers: [{ name: Thenpennai, lat: 12.470, lon: 78.180 }] }
+  - { id: madurai, name: Madurai, state: TN, aliases: [], hq: [9.925, 78.120],
+      rivers: [{ name: Vaigai, lat: 9.930, lon: 78.130 }] }
+  - { id: mayiladuthurai, name: Mayiladuthurai, state: TN, aliases: [Mayiladuturai, Mayuram], hq: [11.103, 79.655],
+      rivers: [{ name: Kollidam, lat: 11.250, lon: 79.650 }] }
+  - { id: nagapattinam, name: Nagapattinam, state: TN, aliases: [Nagai], hq: [10.766, 79.843] }
+  - { id: namakkal, name: Namakkal, state: TN, aliases: [], hq: [11.219, 78.168] }
+  - { id: nilgiris, name: The Nilgiris, state: TN, aliases: [Nilgiris, Ooty, Udhagamandalam], hq: [11.413, 76.696] }
+  - { id: perambalur, name: Perambalur, state: TN, aliases: [], hq: [11.234, 78.880] }
+  - { id: pudukkottai, name: Pudukkottai, state: TN, aliases: [Pudukottai], hq: [10.381, 78.821] }
+  - { id: ramanathapuram, name: Ramanathapuram, state: TN, aliases: [Ramnad], hq: [9.371, 78.830] }
+  - { id: ranipet, name: Ranipet, state: TN, aliases: [], hq: [12.932, 79.333] }
+  - { id: salem, name: Salem, state: TN, aliases: [], hq: [11.664, 78.146],
+      rivers: [{ name: Cauvery (Mettur), lat: 11.790, lon: 77.810 }] }
+  - { id: sivaganga, name: Sivaganga, state: TN, aliases: [Sivagangai], hq: [9.847, 78.483] }
+  - { id: tenkasi, name: Tenkasi, state: TN, aliases: [], hq: [8.959, 77.302] }
+  - { id: thanjavur, name: Thanjavur, state: TN, aliases: [Tanjore], hq: [10.787, 79.138],
+      rivers: [{ name: Cauvery (Grand Anicut), lat: 10.830, lon: 78.820 }] }
+  - { id: theni, name: Theni, state: TN, aliases: [], hq: [10.010, 77.477],
+      rivers: [{ name: Vaigai, lat: 10.050, lon: 77.590 }] }
+  - { id: thoothukudi, name: Thoothukudi, state: TN, aliases: [Tuticorin], hq: [8.764, 78.135],
+      rivers: [{ name: Thamirabarani (Srivaikuntam), lat: 8.630, lon: 77.910 }] }
+  - { id: tiruchirappalli, name: Tiruchirappalli, state: TN, aliases: [Trichy, Tiruchi], hq: [10.790, 78.705],
+      rivers: [{ name: Cauvery (Srirangam), lat: 10.860, lon: 78.690 }, { name: Kollidam, lat: 10.880, lon: 78.730 }] }
+  - { id: tirunelveli, name: Tirunelveli, state: TN, aliases: [Nellai], hq: [8.714, 77.757],
+      rivers: [{ name: Thamirabarani, lat: 8.730, lon: 77.710 }] }
+  - { id: tirupathur, name: Tirupathur, state: TN, aliases: [Tirupattur], hq: [12.496, 78.567] }
+  - { id: tiruppur, name: Tiruppur, state: TN, aliases: [Tirupur], hq: [11.108, 77.341] }
+  - { id: tiruvallur, name: Tiruvallur, state: TN, aliases: [Thiruvallur], hq: [13.144, 79.909],
+      rivers: [{ name: Kosasthalaiyar, lat: 13.250, lon: 79.950 }] }
+  - { id: tiruvannamalai, name: Tiruvannamalai, state: TN, aliases: [Thiruvannamalai], hq: [12.228, 79.067] }
+  - { id: tiruvarur, name: Tiruvarur, state: TN, aliases: [Thiruvarur], hq: [10.772, 79.637] }
+  - { id: vellore, name: Vellore, state: TN, aliases: [], hq: [12.917, 79.133],
+      rivers: [{ name: Palar, lat: 12.930, lon: 79.140 }] }
+  - { id: viluppuram, name: Viluppuram, state: TN, aliases: [Villupuram], hq: [11.940, 79.493],
+      rivers: [{ name: Thenpennai, lat: 11.930, lon: 79.450 }] }
+  - { id: virudhunagar, name: Virudhunagar, state: TN, aliases: [Virudunagar], hq: [9.580, 77.958] }
+
+  # ---------------- Watch-list: high-risk districts elsewhere ----------------
+  - id: puducherry
+    name: Puducherry
+    state: PY
+    aliases: [Pondicherry, Pondy]
+    hq: [11.934, 79.830]
+    search_radius_km: 12
+    rivers:
+      - { name: Sankarabarani, lat: 11.890, lon: 79.780 }
+  - { id: wayanad, name: Wayanad, state: KL, aliases: [Kalpetta], hq: [11.608, 76.083],
+      rivers: [{ name: Kabini, lat: 11.800, lon: 76.070 }] }
+  - id: nellore
+    name: Sri Potti Sriramulu Nellore
+    state: AP
+    aliases: [Nellore, SPSR Nellore]
+    hq: [14.443, 79.987]
+    rivers:
+      - { name: Penna, lat: 14.460, lon: 79.980 }
+  - { id: puri, name: Puri, state: OR, aliases: [], hq: [19.810, 85.831],
+      rivers: [{ name: Mahanadi delta (Kushabhadra), lat: 19.900, lon: 85.950 }] }
+  - id: kamrup_metro
+    name: Kamrup Metropolitan
+    state: AS
+    aliases: [Kamrup Metro, Guwahati]
+    hq: [26.144, 91.736]
+    search_radius_km: 15
+    rivers:
+      - { name: Brahmaputra, lat: 26.190, lon: 91.750 }
+  - { id: mumbai_suburban, name: Mumbai Suburban, state: MH, aliases: [Mumbai], hq: [19.076, 72.878], search_radius_km: 15,
+      rivers: [{ name: Mithi, lat: 19.060, lon: 72.860 }] }
