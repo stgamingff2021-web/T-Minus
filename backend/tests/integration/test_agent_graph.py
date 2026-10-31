@@ -118,8 +118,8 @@ class ScriptedLLM:
         if output_schema is COMMS_SCHEMA:
             wording = re.search(r'"((?:very likely|likely|possible) \(\d+%\))"', system).group(1)
             pct = re.search(r"\((\d+)%\)", wording).group(1)
-            d = {"sms_en": f"Chennai: very heavy rain {wording} in the next 2 days. Move valuables up and avoid low-lying roads.",
-                 "sms_ta": f"சென்னை: அடுத்த 2 நாட்களில் மிக கனமழை, மிக அதிக வாய்ப்பு ({pct}%). தாழ்வான சாலைகளைத் தவிர்க்கவும்.",
+            d = {"sms_en": f"Chennai: very heavy rain {wording} within 48 hours. Move valuables up and avoid low-lying roads.",
+                 "sms_ta": f"சென்னை: 48 மணி நேரத்தில் மிக கனமழை, மிக அதிக வாய்ப்பு ({pct}%). தாழ்வான சாலைகளைத் தவிர்க்கவும்.",
                  "headline_en": "Very heavy rain expected in Chennai", "description_en": "Very heavy rain is very likely.",
                  "instruction_en": "Avoid low-lying roads.", "headline_ta": "சென்னையில் மிக கனமழை",
                  "description_ta": "மிக கனமழைக்கு வாய்ப்பு.", "instruction_ta": "தாழ்வான சாலைகளைத் தவிர்க்கவும்."}
@@ -200,7 +200,7 @@ async def test_approval_gate_and_audit(chennai_act):
         r = await c.post(f"/api/communications/{cap['id']}/approve", json={"confirmation_token": conf["token"]}, headers=H)
         assert r.status_code == 422
         # fix it, confirm again, publish
-        await c.patch(f"/api/communications/{en['id']}", json={"content": "Chennai: very heavy rain very likely (78%) in 2 days. Avoid low-lying roads."}, headers=H)
+        await c.patch(f"/api/communications/{en['id']}", json={"content": "Chennai: very heavy rain very likely (78%) within 48 hours. Avoid low-lying roads."}, headers=H)
         conf = (await c.post(f"/api/communications/{cap['id']}/confirmation", headers=H)).json()
         r = await c.post(f"/api/communications/{cap['id']}/approve", json={"confirmation_token": conf["token"]}, headers=H)
         assert r.status_code == 200 and r.json()["published"] is True

@@ -221,8 +221,11 @@ def persist(run_id: str, ctx: RunCtx, final: dict) -> None:
         trig = s.get(Trigger, final.get("trigger_id")) if final.get("trigger_id") else None
         district_row = s.get(District, ctx.district_id)
         if comms.get("drafted") and draft_c:
-            en_problems = sms.check_english(draft_c.get("sms_en", ""))
-            ta_problems = sms.check_tamil(draft_c.get("sms_ta", ""))
+            extra = comms.get("problems") or []
+            en_problems = sms.check_english(draft_c.get("sms_en", "")) + [
+                x for x in extra if x.startswith(("sms_en", "English")) and x not in sms.check_english(draft_c.get("sms_en", ""))]
+            ta_problems = sms.check_tamil(draft_c.get("sms_ta", "")) + [
+                x for x in extra if x.startswith(("sms_ta", "Tamil")) and x not in sms.check_tamil(draft_c.get("sms_ta", ""))]
             s.add(Communication(run_id=run_id, kind="public_en", content=draft_c.get("sms_en", ""),
                                 valid=not en_problems, validation={"problems": en_problems, **sms.count(draft_c.get("sms_en", "")).as_dict()}))
             s.add(Communication(run_id=run_id, kind="public_ta", content=draft_c.get("sms_ta", ""),

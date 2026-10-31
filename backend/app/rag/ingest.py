@@ -70,7 +70,7 @@ def _ocr_page(page) -> tuple[str, float | None]:
 
 
 def extract_pages(data: bytes) -> list[PageText]:
-    import fitz  # PyMuPDF
+    import pymupdf as fitz  # PyMuPDF
 
     try:
         doc = fitz.open(stream=data, filetype="pdf")

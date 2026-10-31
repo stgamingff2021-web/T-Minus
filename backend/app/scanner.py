@@ -383,7 +383,12 @@ async def run_scan(kind: str = "manual") -> dict[str, Any]:
             scan_id = scan.id
         try:
             summary = await _scan_body(scan_id)
-            status = "ok" if not summary.get("districts_failed") else "partial"
+            if not summary.get("districts_failed"):
+                status = "ok"
+            elif summary.get("districts_ok"):
+                status = "partial"
+            else:
+                status = "failed"  # nothing real could be fetched; last readings stay STALE
             err = None
         except Exception as exc:  # noqa: BLE001 - the health endpoint reports scan failures
             log.exception("scan failed")
