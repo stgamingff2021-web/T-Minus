@@ -30,6 +30,7 @@ import httpx
 
 from app.agent.llm import LLMRefused, LLMResult, LLMUnavailable
 from app.sources import registry
+from app.tls import ssl_verify
 
 API = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 EFFORT_TO_LEVEL = {"low": "low", "medium": "medium", "high": "high", "xhigh": "high", "max": "high"}
@@ -167,7 +168,8 @@ class GeminiLLM:
 
     def _http(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
-            self._client = httpx.AsyncClient(timeout=httpx.Timeout(self._timeout, connect=15.0), trust_env=True)
+            self._client = httpx.AsyncClient(timeout=httpx.Timeout(self._timeout, connect=15.0), trust_env=True,
+                                             verify=ssl_verify())
         return self._client
 
     def _fail(self, msg: str, t0: float) -> None:

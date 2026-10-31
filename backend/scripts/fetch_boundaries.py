@@ -33,6 +33,7 @@ from shapely.ops import linemerge, polygonize, unary_union
 
 from app.config import get_config, get_settings
 from app.geo import PROVENANCE_FILE, boundaries_path
+from app.tls import ssl_verify
 
 ISO = {"TN": "IN-TN", "PY": "IN-PY", "KL": "IN-KL", "AP": "IN-AP", "OR": "IN-O[RD]", "AS": "IN-AS", "MH": "IN-MH"}
 GEOBOUNDARIES_API = "https://www.geoboundaries.org/api/current/gbOpen/IND/ADM2/"
@@ -185,7 +186,7 @@ def main() -> int:
     ap.add_argument("--source", choices=["osm", "nominatim", "geoboundaries", "auto"], default="auto")
     args = ap.parse_args()
     s = get_settings()
-    client = httpx.Client(headers={"User-Agent": s.user_agent})
+    client = httpx.Client(headers={"User-Agent": s.user_agent}, verify=ssl_verify())
     feats, notes, prov = [], [], {}
     if args.source == "osm" or (args.source == "auto" and overpass_reachable(client, s.overpass_url)):
         try:

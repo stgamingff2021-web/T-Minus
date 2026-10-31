@@ -8,6 +8,9 @@
 # URLs located 2026-10-31. Status: "ingested" = downloaded and ingested successfully from
 # the build sandbox; "located" = official URL found, host not reachable from the build
 # sandbox (tnsdma.tn.gov.in was blocked there) — ingest it from the deployment.
+# On a laptop, tnsdma.tn.gov.in failed Python's certifi check ("unable to get local issuer
+# certificate"); downloads now verify against the operating system's trust store, like a
+# browser (backend/app/tls.py). Reruns skip documents already ingested from the same URL.
 #
 # kind: district (DDMP) | city (city disaster management plan) | generic (NDMA guideline)
 
@@ -111,20 +114,28 @@ documents:
     landing_page: https://revenue.py.gov.in/
     status: ingested  # 396 pages -> 1726 chunks
 
+  # NDMA guidelines: ndma.gov.in itself is outside the build environment's network, so these
+  # point to the copies published by the Goa State Disaster Management Authority (a government
+  # host). Each was downloaded and checked on 2026-10-31 — title page and NDMA imprint, page
+  # count, SHA-256 — before being listed. Replace with the ndma.gov.in link when convenient.
   - key: ndma_floods
     district: null
     kind: generic
-    title: NDMA National Disaster Management Guidelines — Management of Floods
-    edition_year: null
-    source_url: null
-    landing_page: https://ndma.gov.in/   # not reachable from the build sandbox; copy the PDF link here
-    status: to_locate
+    title: NDMA National Disaster Management Guidelines — Management of Floods (2008)
+    edition_year: 2008            # foreword dated 17 January 2008
+    source_url: https://sdma.goa.gov.in/sites/default/files/2022-05/flood.pdf
+    landing_page: https://ndma.gov.in/
+    hosted_by: Goa State Disaster Management Authority
+    verified: "2026-10-31: 168 pages, NDMA / Government of India imprint, sha256 2fc4518a29c249c9…"
+    status: ingested  # 168 pages -> 576 chunks (from-config run, 2026-10-31)
 
   - key: ndma_urban_floods
     district: null
     kind: generic
-    title: NDMA National Disaster Management Guidelines — Management of Urban Flooding
-    edition_year: null
-    source_url: null
+    title: NDMA National Disaster Management Guidelines — Management of Urban Flooding (2010)
+    edition_year: 2010            # September 2010, ISBN 978-93-80440-09-5
+    source_url: https://sdma.goa.gov.in/sites/default/files/2022-05/management_urban_flooding.pdf
     landing_page: https://ndma.gov.in/
-    status: to_locate
+    hosted_by: Goa State Disaster Management Authority
+    verified: "2026-10-31: 190 pages, NDMA imprint, ISBN 978-93-80440-09-5, sha256 13b2129848859b89…"
+    status: ingested  # 190 pages -> 653 chunks (from-config run, 2026-10-31)

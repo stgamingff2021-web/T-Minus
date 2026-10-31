@@ -29,6 +29,7 @@ from app.config import get_settings
 from app.db.models import SourceFetch, utcnow
 from app.db.session import session_scope
 from app.sources import registry
+from app.tls import ssl_verify
 
 log = logging.getLogger("tminus.sources")
 
@@ -88,6 +89,7 @@ def get_client() -> httpx.AsyncClient:
             headers={"User-Agent": s.user_agent},
             follow_redirects=True,
             trust_env=True,
+            verify=ssl_verify(),
         )
     return _client
 

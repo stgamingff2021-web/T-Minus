@@ -21,6 +21,7 @@ from app.geo import load_boundaries
 from app.rag import embed
 from app.ratelimit import limit
 from app.sources import registry
+from app.tls import trust_store_label
 
 router = APIRouter(prefix="/api", tags=["system"])
 VERSION = "1.0.0"
@@ -62,6 +63,7 @@ def health():
         "boundaries_loaded": len(boundaries),
         "boundary_source": (prov or {}).get("source"),
         "chaos": registry.chaos_sources(),
+        "tls_trust": trust_store_label(),
         "login_configured": bool(get_settings().officer_passcode or get_settings().admin_passcode),
     }
 

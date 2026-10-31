@@ -54,6 +54,8 @@ Where the specification left a detail open, the implementation made the assumpti
 |---|---|
 | D-04 | Retrieval excludes table-of-contents pages (detected by repeated "numbered heading … page number" entries) — they match many queries but carry no actionable content. Relevance gate thresholds were calibrated on the real GCC Chennai CDMP 2025 and Puducherry DM Action Plan 2023 (`config/hazards.yaml`). |
 | D-05 | Setup-script ingestion from an official URL allows larger files (`MAX_INGEST_MB`, default 150: city plans are 60–80 MB) than officer uploads through the UI (`MAX_UPLOAD_MB`, default 30, spec starting value). |
+| D-06 | Outbound HTTPS is verified against the operating system's trust store (`truststore`, `app/tls.py`) — the store the officer's browser uses — instead of only Python's bundled certifi list. On 2026-10-31 tnsdma.tn.gov.in failed certifi verification on a Windows laptop ("unable to get local issuer certificate") while browsers opened it; Windows and macOS complete such chains themselves. Verification is never disabled; `USE_OS_TRUST_STORE=false` falls back to certifi. |
+| D-07 | NDMA guidelines (*Management of Floods*, 2008; *Management of Urban Flooding*, 2010) are fetched from the copies published by the Goa State Disaster Management Authority because ndma.gov.in is outside the build environment's network. Each copy was checked before listing (title page and NDMA imprint, page count, ISBN where printed, SHA-256) and ingested via `--from-config` (168 pages → 576 chunks; 190 pages → 653 chunks). Replace with ndma.gov.in links when reachable. Verified live 2026-10-31. |
 
 | # | Assumption |
 |---|---|

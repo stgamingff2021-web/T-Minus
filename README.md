@@ -32,7 +32,7 @@ Run against the real public APIs — screenshots in [`docs/evidence/`](docs/evid
 * **Triggers:** no district near the very-heavy-rain threshold that day (highest: SPSR Nellore 13.7%, 7 of 51); 7 districts at **WATCH from the GloFAS river rule** (ensemble maximum above each cell's own 1984–2022 P95), opened once and not duplicated by later scans.
 * **Replay, Cyclone Fengal (Viluppuram), forecasts as issued by 8 global models:** WATCH 48 h, **PREPARE 30 h**, ACT 24 h before the observed 394.7 mm/24 h peak — target (PREPARE ≥ 24 h) met; no false alarm in the quiet period.
 * **SACHET:** per-state CAP feeds (`rss_tamil`, `rss_puducherry`, …) parsed; real IMD Chennai nowcasts matched to districts by name.
-* **Knowledge base:** GCC City Disaster Management Perspective Plan 2025 (805 pages → 4,601 chunks) and Puducherry DM Action Plan 2023 (396 pages → 1,726 chunks) ingested from their official URLs; hybrid retrieval returns the right pages and answers "not found" for off-topic queries.
+* **Knowledge base:** GCC City Disaster Management Perspective Plan 2025 (805 pages → 4,601 chunks) and Puducherry DM Action Plan 2023 (396 pages → 1,726 chunks) ingested from their official URLs, plus the NDMA *Management of Floods* (2008, 576 chunks) and *Management of Urban Flooding* (2010, 653 chunks) guidelines for districts without a plan; hybrid retrieval returns the right pages and answers "not found" for off-topic queries.
 * **Boundaries:** 44/44 districts from OpenStreetMap (via Nominatim). **CAP XSD:** byte-identical to the OASIS original.
 * **Agent on a real LLM (Gemini):** full ASSESS → GATHER → PLAN → VERIFY → COMMUNICATE runs for Chennai and Puducherry on real plans — the model chose its own plan searches, adapted when a tool timed out, VERIFY rejected a draft and the retry passed; every action carries a verbatim quote with its page (`docs/evidence/07–09`).
 * Bugs found only by live data and fixed: river points snapped to the real GloFAS channel, lightning nowcasts no longer act as orange floors, rate-limit (429) handling, table-of-contents pages excluded from retrieval, a replay-endpoint event-loop crash, per-tool timeouts.
@@ -78,35 +78,87 @@ flowchart LR
 
 More diagrams (agent graph, trigger lifecycle, ingestion) in [`docs/architecture.md`](docs/architecture.md).
 
-## Quick start (local, < 10 minutes)
+## Quick start (your laptop: Windows, macOS or Linux)
 
-Prerequisites: Python 3.11+, Node 20+.
+**You need:** Git, **Python 3.12 or 3.13** (3.14 also works; **not 3.15** yet — PyYAML has no build for it), and Node 20+.
+Intel Macs are handled automatically (they get PyMuPDF 1.28.2, which has an Intel build and gives identical text).
+
+**1. Get the code**
 
 ```bash
 git clone https://github.com/stgamingff2021-web/T-Minus.git
 ```
 
 ```bash
-cd T-Minus && cp .env.example .env
+cd T-Minus
 ```
 
-Edit `.env`: set `SECRET_KEY` (32+ random characters), `OFFICER_PASSCODE`, `ADMIN_PASSCODE`, and an LLM key for the agent — `GEMINI_API_KEY` (Google AI Studio) and/or `ANTHROPIC_API_KEY` (optional: without one the planner runs in retrieval-only mode). Then:
+**2. Create `.env` in the `T-Minus` folder.** The minimum is three lines (or copy `.env.example` for every option):
+
+```ini
+GEMINI_API_KEY=your-google-ai-studio-key
+OFFICER_PASSCODE=pick-a-passcode
+ADMIN_PASSCODE=pick-another-passcode
+```
+
+Add `EMBEDDING_BACKEND=tfidf` on a laptop: it is the configuration used in the live verification and imports plans in
+seconds (the local neural model takes ~15 min for an 800-page plan on a laptop CPU). Use `ANTHROPIC_API_KEY` instead of,
+or as well as, `GEMINI_API_KEY` for Claude. Without any LLM key the planner runs in retrieval-only mode. `.env` is
+git-ignored; never commit it.
+
+**3. Install the backend** (from `T-Minus`)
 
 ```bash
-cd backend && python -m venv .venv && . .venv/bin/activate && pip install -r requirements-dev.txt
+cd backend
+```
+
+macOS / Linux:
+
+```bash
+python3 -m venv .venv
 ```
 
 ```bash
-cd ../frontend && npm ci && npm run build
+source .venv/bin/activate
+```
+
+Windows (PowerShell):
+
+```bash
+py -3.12 -m venv .venv
 ```
 
 ```bash
-cd ../backend && uvicorn app.main:app --port 8000
+.venv\Scripts\activate
 ```
 
-Open <http://localhost:8000>. The first scan starts immediately; the command map fills in as live data arrives (≈ 10–30 s).
+If PowerShell says *running scripts is disabled*, run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once and activate again. Then, on any OS:
 
-**One-time setup of real geography and plans** (from `backend/`, with the venv active):
+```bash
+pip install -r requirements.txt
+```
+
+**4. Build the dashboard**
+
+```bash
+cd ../frontend
+```
+
+```bash
+npm install
+```
+
+```bash
+npm run build
+```
+
+```bash
+cd ../backend
+```
+
+**5. One-time data setup** (venv active, in `backend/`). Run this **before** starting the server — a running server does
+not see plans imported by the script until it restarts. Plan PDFs and boundaries are downloaded from their official
+sources and are never committed.
 
 ```bash
 python -m scripts.fetch_boundaries
@@ -117,12 +169,33 @@ python -m scripts.compute_river_baselines
 ```
 
 ```bash
-python -m scripts.ingest_plans --url "<official DDMP PDF URL>" --district chennai --title "Chennai District Disaster Management Plan" --year 2024
+python -m scripts.ingest_plans --from-config
 ```
 
-Or upload official PDFs from the **Plans** page. Plan PDFs and boundaries are downloaded from their official/published sources — they are never committed.
+`--from-config` imports every document in `config/plans.yaml` (city and district plans plus the NDMA flood and urban-flood
+guidelines) and skips anything already imported, so re-running it is cheap. Add other official PDFs with
+`--url … --district … --title …`, or upload them on the **Plans** page.
 
-Frontend development with hot reload: `cd frontend && npm run dev` (proxies `/api` to `:8000`) and open <http://localhost:5173>.
+**6. Run it**
+
+```bash
+uvicorn app.main:app --port 8000
+```
+
+Open <http://localhost:8000>. The first live scan starts immediately and the map fills in within ~10–30 s. Log in with
+the officer passcode to approve actions. Next time: activate the venv in `backend/` and run the `uvicorn` line.
+
+**Laptop notes**
+
+* **Certificates:** downloads are verified against your operating system's trust store — the same one your browser uses
+  — so government sites with an unusual certificate chain (e.g. tnsdma.tn.gov.in) work. Verification is never turned
+  off; if a site still fails, download the PDF in your browser and upload it on the Plans page.
+* **OneDrive / Dropbox folders:** keep the project outside synced folders (e.g. `C:\T-Minus`); syncing can lock the
+  SQLite database.
+* **PDF briefing:** needs the Pango/GTK libraries (included in Docker). Without them the briefing opens as HTML — print
+  it to PDF from the browser. **Scanned plans:** install Tesseract for OCR; without it, image-only pages are skipped.
+* **Frontend development** with hot reload: `cd frontend && npm run dev` (proxies `/api` to `:8000`) and open
+  <http://localhost:5173>.
 
 ### Docker
 
@@ -143,7 +216,7 @@ The image builds the dashboard, installs PDF fonts (incl. Noto Sans Tamil) and T
 cd backend && python -m pytest -q -m "not live"
 ```
 
-82 tests: unit tests for every pure function (rolling accumulation, probability incl. the spec's 38/51 worked example, t\*, onset, level rules, +1 escalation cap, disagreement, hysteresis by model run, SMS segment counting, probability wording, CAP builder + XSD, verbatim-citation checker, number/facility/phase checks, chunker, SACHET parsing, replay no-look-ahead) and integration tests that drive a **full scan** and a **full agent run** (with a scripted LLM double) through mocked HTTP — covering trigger dedupe, stand-down, ECMWF→GFS fallback, all-sources-down, official floors, VERIFY rejection and retry, the approval gate, CAP validity, the audit log, replay without look-ahead, officer stand-down → CAP Cancel, and garbage input (AC-14).
+88 tests: unit tests for every pure function (rolling accumulation, probability incl. the spec's 38/51 worked example, t\*, onset, level rules, +1 escalation cap, disagreement, hysteresis by model run, SMS segment counting, probability wording, CAP builder + XSD, verbatim-citation checker, number/facility/phase checks, chunker, SACHET parsing, replay no-look-ahead) and integration tests that drive a **full scan** and a **full agent run** (with a scripted LLM double) through mocked HTTP — covering trigger dedupe, stand-down, ECMWF→GFS fallback, all-sources-down, official floors, VERIFY rejection and retry, the approval gate, CAP validity, the audit log, replay without look-ahead, officer stand-down → CAP Cancel, and garbage input (AC-14).
 
 ```bash
 python -m pytest -q -m live tests/integration/test_live_sources.py
@@ -199,6 +272,7 @@ All errors share one shape: `{ "error": { "code", "message", "source", "retryabl
 * SACHET publishes no colour code and keeps polygons behind a firewall, so district matching relies on the area names in each alert; thunderstorm/lightning nowcasts are informational, only heavy-rain/flood/cyclone alerts act as floors.
 * Without an LLM key the planner runs in retrieval-only mode. Without `ORS_API_KEY` safe routes are disabled (reported in the Sources panel).
 * Gemini free tier latency: on 2026-10-31 a full agent run took 3–4.5 minutes with `gemini-3.5-flash` (`gemini-flash-lite-latest` answers in ~1 s; set `GEMINI_MODEL` to trade quality for speed). The 120 s soft timeout then skips the optional critic pass.
+* NDMA guidelines are fetched from the Goa SDMA's published copies (ndma.gov.in was unreachable from the build environment); each was checked against the NDMA imprint before listing.
 * Tamil UI labels and the Tamil wording hints need native-speaker review; all Tamil public messages are reviewed by an officer before publication.
 * See [`docs/assumptions.md`](docs/assumptions.md) and [`docs/decisions.md`](docs/decisions.md).
 

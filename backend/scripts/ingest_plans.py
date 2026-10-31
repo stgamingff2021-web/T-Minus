@@ -16,20 +16,38 @@ import sys
 from pathlib import Path
 
 import httpx
+from sqlalchemy import select
 
 from app.config import get_config, get_settings
-from app.db.session import init_db
+from app.db.models import PlanDocument
+from app.db.session import init_db, session_scope
 from app.rag.ingest import IngestError, ingest_pdf
+from app.tls import is_certificate_error, ssl_verify, trust_store_label
 
 
 def download(url: str) -> bytes:
     s = get_settings()
-    with httpx.Client(headers={"User-Agent": s.user_agent}, follow_redirects=True, timeout=180) as c:
+    with httpx.Client(headers={"User-Agent": s.user_agent}, follow_redirects=True, timeout=180,
+                      verify=ssl_verify()) as c:
         r = c.get(url)
         r.raise_for_status()
         if len(r.content) > s.max_ingest_mb * 1024 * 1024:
             raise IngestError("file_too_large", f"{url} exceeds {s.max_ingest_mb} MB")
         return r.content
+
+
+def already_ingested(url: str) -> str | None:
+    """Id of a stored document fetched from this URL (reruns skip the download)."""
+    with session_scope() as s:
+        return s.execute(select(PlanDocument.id).where(PlanDocument.source_url == url)).scalars().first()
+
+
+def explain_failure(exc: Exception, url: str) -> str:
+    if is_certificate_error(exc):
+        return (f"{exc}\n    The site's HTTPS certificate could not be verified (checked against the {trust_store_label()})."
+                f"\n    Verification is never disabled. If your browser opens {url}, download the PDF there and"
+                f"\n    upload it on the Plans page, or run: python -m scripts.ingest_plans --file <pdf> ...")
+    return str(exc)
 
 
 def ingest_one(data: bytes, *, title: str, kind: str, district: str | None, url: str | None, year: int | None) -> None:
@@ -53,6 +71,7 @@ def main() -> int:
     ap.add_argument("--title")
     ap.add_argument("--source-url")
     ap.add_argument("--year", type=int)
+    ap.add_argument("--force", action="store_true", help="with --from-config: re-download documents already ingested")
     a = ap.parse_args()
     init_db()
     if a.from_config:
@@ -62,19 +81,26 @@ def main() -> int:
                 print(f"- {doc['key']}: no source_url yet — copy the PDF link from {doc.get('landing_page')}")
                 continue
             print(f"- {doc['key']}: {doc['source_url']}")
+            if (existing := already_ingested(doc["source_url"])) and not a.force:
+                print(f"  = already ingested ({existing}); skipped (use --force to re-download)")
+                continue
             try:
                 ingest_one(download(doc["source_url"]), title=doc["title"], kind=doc["kind"], district=doc.get("district"),
                            url=doc["source_url"], year=doc.get("edition_year"))
             except (httpx.HTTPError, IngestError) as exc:
                 ok = False
-                print(f"  ! failed: {exc}")
+                print(f"  ! failed: {explain_failure(exc, doc['source_url'])}")
         return 0 if ok else 1
     if not a.title or (a.kind != "generic" and not a.district):
         ap.error("--title and --district (unless --kind generic) are required")
     if a.district and get_config().district(a.district) is None:
         ap.error(f"unknown district {a.district!r}")
     if a.url:
-        data, src = download(a.url), a.url
+        try:
+            data, src = download(a.url), a.url
+        except httpx.HTTPError as exc:
+            print(f"! download failed: {explain_failure(exc, a.url)}", file=sys.stderr)
+            return 1
     elif a.file:
         data, src = Path(a.file).expanduser().read_bytes(), a.source_url
     else:

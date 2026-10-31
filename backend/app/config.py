@@ -81,6 +81,7 @@ class Settings(BaseSettings):
     ors_api_key: str = ""
     contact_email: str = ""              # sent in the User-Agent (Nominatim policy)
     http_timeout_s: float = 30.0
+    use_os_trust_store: bool = True      # verify HTTPS against the OS trust store (truststore); never disabled
 
     # --- uploads ---
     max_upload_mb: int = 30          # officer uploads through the UI (spec starting value)
