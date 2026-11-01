@@ -88,7 +88,7 @@ export default function Plans() {
           <div className="section-title"><MessageSquareQuote size={12} /> Ask the plan</div>
           <div className="col">
             <label className="field">District<select value={qDistrict} onChange={(e) => setQDistrict(e.target.value)}>{dlist.map((d: any) => <option key={d.id} value={d.id}>{d.name}</option>)}</select></label>
-            <label className="field">Question<input className="input" value={question} maxLength={500} onChange={(e) => setQuestion(e.target.value)} onKeyDown={(e) => e.key === "Enter" && question.trim() && ask()} placeholder="Which department deploys dewatering pumps?" /></label>
+            <label className="field">Question<input className="input" value={question} maxLength={500} onChange={(e) => setQuestion(e.target.value)} onKeyDown={(e) => e.key === "Enter" && question.trim() && ask()} placeholder="e.g. Which department deploys dewatering pumps?" /></label>
             <button className="btn" onClick={ask} disabled={asking || question.trim().length < 4}>{asking && <Loader2 size={14} className="spin" />} Ask</button>
             {answer && (
               <div className="card tight" style={{ background: "var(--panel2)" }}>
