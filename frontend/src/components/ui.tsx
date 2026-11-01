@@ -147,11 +147,29 @@ export function LoginModal() {
     <Modal
       title={t("login")}
       onClose={() => setLoginOpen(false)}
-      footer={<button className="btn primary" onClick={submit} disabled={busy || !name || !pass}>{busy && <Loader2 size={14} className="spin" />} Sign in</button>}
+      footer={
+        <>
+          <button type="button" className="btn" onClick={() => setLoginOpen(false)} disabled={busy}>Cancel</button>
+          <button type="submit" form="login-form" className="btn primary" disabled={busy || !name.trim() || !pass}>
+            {busy && <Loader2 size={14} className="spin" />} Sign in
+          </button>
+        </>
+      }
     >
-      <label className="field">Display name<input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. EOC duty officer" autoFocus /></label>
-      <label className="field">Passcode<input className="input" type="password" value={pass} onChange={(e) => setPass(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} /></label>
-      {err && <div className="banner danger small">{err}</div>}
+      <form id="login-form" className="col" style={{ gap: 14 }} onSubmit={(e) => { e.preventDefault(); if (!busy && name.trim() && pass) submit(); }}>
+        <p className="small muted" style={{ margin: 0 }}>
+          Sign in to approve actions, publish exercise alerts and start planner runs. Browsing the dashboard needs no account.
+        </p>
+        <label className="field">
+          Display name
+          <input className="input" name="username" autoComplete="username" value={name} onChange={(e) => setName(e.target.value)} placeholder="Name shown in the audit log" maxLength={64} autoFocus />
+        </label>
+        <label className="field">
+          Passcode
+          <input className="input" name="password" type="password" autoComplete="current-password" value={pass} onChange={(e) => setPass(e.target.value)} />
+        </label>
+        {err && <div className="banner danger small" role="alert">{err}</div>}
+      </form>
     </Modal>
   );
 }

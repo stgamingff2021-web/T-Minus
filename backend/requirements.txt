@@ -6,6 +6,7 @@ pydantic-settings==2.16.2
 SQLAlchemy==2.1.6
 psycopg[binary]==3.3.6          # only needed when DATABASE_URL points at Postgres
 httpx==0.28.1
+cryptography==50.0.2            # AES-SIV sealed URL tokens (app/links.py)
 truststore==0.10.5              # verify HTTPS with the OS trust store (see app/tls.py)
 PyYAML==6.0.3
 numpy==2.5.4

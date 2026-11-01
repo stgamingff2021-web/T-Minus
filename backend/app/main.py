@@ -15,10 +15,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from app import errors, notify, scheduler
+from app import errors, links, notify, scheduler
 from app.api import districts, execution, impact, plandb, plans, replay, runs, system
 from app.config import get_config, get_settings
 from app.db.session import init_db
+from app.security import SecurityMiddleware
 from app.sources import registry
 from app.sources.base import close_client
 
@@ -73,11 +74,13 @@ def create_app() -> FastAPI:
     async def _catch_up(request: Request, call_next):
         if request.url.path in ("/api/districts", "/api/health"):
             scheduler.ensure_alive()
-        response = await call_next(request)
-        response.headers.setdefault("X-Content-Type-Options", "nosniff")
-        return response
+        return await call_next(request)
 
-    for r in (system.router, districts.router, runs.router, plans.router, replay.router, plandb.router, execution.router, impact.router):
+    # Outermost: redirects to HTTPS before anything else runs and decorates every response.
+    app.add_middleware(SecurityMiddleware, force_https=settings.https_enforced,
+                       trust_proxy=settings.trust_proxy_headers)
+
+    for r in (system.router, districts.router, runs.router, plans.router, replay.router, plandb.router, execution.router, impact.router, links.router):
         app.include_router(r)
 
     dist: Path = settings.frontend_dist

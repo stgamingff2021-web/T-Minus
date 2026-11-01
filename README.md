@@ -52,6 +52,13 @@ Run against the real public APIs — screenshots in [`docs/evidence/`](docs/evid
 4. **Humans approve; the system never sends.** `POST /api/communications/{id}/approve` requires an officer session **and** a confirmation token bound to the exact message text (`/confirmation`). “Publish” posts only to the app's own public page; CAP status is always `Exercise` (the validator rejects anything else).
 5. **Everyone can explain everything.** Each module opens with a docstring explaining what it does and why; `docs/architecture.md` walks the data flow.
 
+## Security
+
+- **HTTPS everywhere in production.** With `ENV=production` (or `FORCE_HTTPS=true`) plain-HTTP requests are redirected (308) to HTTPS, so URLs, paths, query strings, tokens and bodies are only sent encrypted, and responses carry HSTS. Behind a TLS-terminating proxy the scheme is read from `X-Forwarded-Proto` (`TRUST_PROXY_HEADERS`). `/api/health` is exempt for platform health checks.
+- **Sealed page URLs.** Addresses such as `/district/<token>` and `/run/<token>` carry an AES-SIV encrypted, authenticated identifier derived from `SECRET_KEY` (`backend/app/links.py`), not the raw id. Tokens are deterministic (bookmarkable), bound to their kind, and rejected if altered. Old plain links redirect to the sealed form. This hides identifiers in the address bar; it is not access control, and read endpoints stay public by design. Keep `SECRET_KEY` stable, since rotating it invalidates saved links.
+- **Browser hardening.** Strict Content-Security-Policy (own scripts only; the CARTO basemap is the single external origin), `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, a restrictive `Permissions-Policy`, and `Cache-Control: no-store` on every `/api` response.
+- **Credentials.** `python -m scripts.init_env` (from `backend/`) writes a git-ignored `.env` with a random `SECRET_KEY` and officer/admin passcodes. Passcodes are compared in constant time and login is rate-limited.
+
 ## Architecture
 
 ```mermaid

@@ -35,8 +35,8 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           <Suspense fallback={<Loading label="Loading…" />}>
             <Routes>
               <Route path="/" element={<CommandMap />} />
-              <Route path="/district/:id" element={<District />} />
-              <Route path="/run/:id" element={<Run />} />
+              <Route path="/district/:token" element={<District />} />
+              <Route path="/run/:token" element={<Run />} />
               <Route path="/sources" element={<Sources />} />
               <Route path="/replay" element={<Replay />} />
               <Route path="/plans" element={<Plans />} />

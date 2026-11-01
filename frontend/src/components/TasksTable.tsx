@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
 import { api } from "../lib/api";
 import { useApp } from "../lib/app";
+import { SecureLink } from "../lib/links";
 import { useApi, useNow } from "../lib/hooks";
 import { countdown, istTime } from "../lib/format";
 import { Loading, Stat } from "./ui";
@@ -77,9 +77,9 @@ function TaskRow({ t, showDistrict, onSaved }: { t: any; showDistrict: boolean; 
   const due = t.due_at ? countdown(t.due_at) : null;
   return (
     <tr className={`${t.overdue ? "overdue" : ""} ${t.status === "blocked" ? "blocked" : ""}`}>
-      {showDistrict && <td><Link to={`/district/${t.district_id}`}>{t.district_name}</Link></td>}
+      {showDistrict && <td><SecureLink kind="district" id={t.district_id}>{t.district_name}</SecureLink></td>}
       <td style={{ maxWidth: 420 }}>
-        <Link to={`/run/${t.run_id}`} className="mono tiny">{t.key}</Link> {t.action}
+        <SecureLink kind="run" id={t.run_id} className="mono tiny">{t.key}</SecureLink> {t.action}
         {t.status === "blocked" && t.blocker && <div className="tiny" style={{ color: "var(--act)" }}>Blocked: {t.blocker}</div>}
       </td>
       <td className="small">{t.department || "—"}</td>

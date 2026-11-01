@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link } from "react-router-dom";
+import { useGo, useRouteId } from "../lib/links";
 import { AlertTriangle, BookOpenText, Bot, Calculator, Droplets, FileSearch, History, Loader2, Waves, XCircle } from "lucide-react";
 import { AssetsPanel } from "../components/AssetsPanel";
 import { FuturesChart, RiverChart } from "../components/charts";
@@ -60,17 +61,19 @@ function RecomputeModal({ assessmentId, onClose }: { assessmentId: string; onClo
 }
 
 export default function District() {
-  const { id } = useParams();
-  const { data, error, loading } = useApi<any>(`/api/districts/${id}`, 30000);
+  const route = useRouteId("district");
+  const id = route.id;
+  const { data, error, loading } = useApi<any>(id ? `/api/districts/${id}` : null, 30000);
   const { requireLogin, toast, user } = useApp();
-  const nav = useNavigate();
+  const go = useGo();
   const [busy, setBusy] = useState(false);
   const [recompute, setRecompute] = useState(false);
   const [closing, setClosing] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [tab, setTab] = useState("forecast");
 
-  if (loading && !data) return <div className="page"><Loading label="Loading…" /></div>;
+  if (route.error) return <div className="page"><ErrorBox error={route.error} what="this district" /></div>;
+  if (!id || (loading && !data)) return <div className="page"><Loading label="Loading…" /></div>;
   if (error && !data) return <div className="page"><ErrorBox error={error} what="this district" /></div>;
   if (!data) return null;
   const d = data.district;
@@ -83,7 +86,7 @@ export default function District() {
     setBusy(true);
     try {
       const r = await api(`/api/districts/${id}/plan`, { method: "POST", json: { hazard } });
-      nav(`/run/${r.run_id}`);
+      go("run", r.run_id);
     } catch (e) {
       toast({ kind: "danger", title: "Planner not started", body: (e as Error).message });
     } finally {
@@ -242,7 +245,7 @@ export default function District() {
           <table className="t small">
             <tbody>
               {(data.runs || []).map((r: any) => (
-                <tr key={r.id} style={{ cursor: "pointer" }} onClick={() => nav(`/run/${r.id}`)}>
+                <tr key={r.id} style={{ cursor: "pointer" }} onClick={() => go("run", r.id)}>
                   <td className="mono">{istTime(r.started_at, true)}</td>
                   <td>{r.level ? <LevelBadge level={r.level} /> : null}</td>
                   <td><span className={`pill ${r.status === "completed" ? "ok" : r.status === "running" ? "info" : "warn"}`}>{r.status}</span></td>

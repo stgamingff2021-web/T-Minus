@@ -1,17 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { AlertTriangle, CheckCircle2, CloudOff, Loader2, RefreshCw, Search, ShieldAlert } from "lucide-react";
 import { MapView, MapDistrict, LEVEL_COLOR } from "../components/MapView";
 import { Countdown, ErrorBox, LevelBadge, Skeleton, Stat } from "../components/ui";
 import { api } from "../lib/api";
 import { useApp } from "../lib/app";
 import { useApi } from "../lib/hooks";
+import { useGo } from "../lib/links";
 import { ago, CATEGORY_LABEL, istTime, LEVEL_ORDER, pct } from "../lib/format";
 
 export default function CommandMap() {
   const { data, error, loading, reload } = useApi<any>("/api/districts?geometry=true", 30000);
   const { t, toast } = useApp();
-  const nav = useNavigate();
   const [q, setQ] = useState("");
   const [scanning, setScanning] = useState(false);
   const [watchlist, setWatchlist] = useState(false);
@@ -51,7 +50,8 @@ export default function CommandMap() {
       })),
     [districts],
   );
-  const onSelect = useCallback((id: string) => nav(`/district/${id}`), [nav]);
+  const go = useGo();
+  const onSelect = useCallback((id: string) => { go("district", id); }, [go]);
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { ACT: 0, PREPARE: 0, WATCH: 0, QUIET: 0, NODATA: 0 };
@@ -128,7 +128,7 @@ export default function CommandMap() {
             .slice()
             .sort((a, b) => (LEVEL_ORDER[b.level || "QUIET"] - LEVEL_ORDER[a.level || "QUIET"]) || ((a.t_star ? Date.parse(a.t_star) : 9e15) - (b.t_star ? Date.parse(b.t_star) : 9e15)) || a.name.localeCompare(b.name))
             .map((d) => (
-              <a key={d.id} className="drow" href={`/district/${d.id}`} onClick={(e) => { e.preventDefault(); nav(`/district/${d.id}`); }}>
+              <div key={d.id} className="drow" role="link" tabIndex={0} onClick={() => go("district", d.id)} onKeyDown={(e) => e.key === "Enter" && go("district", d.id)}>
                 <LevelBadge level={d.level} noData={!d.rain && !d.level} />
                 <div style={{ minWidth: 0 }}>
                   <div className="name">{d.name} {d.watchlist && <span className="pill">{d.state}</span>}</div>
@@ -149,7 +149,7 @@ export default function CommandMap() {
                   </div>
                 </div>
                 <div className="cd">{d.level && d.t_star ? <Countdown target={d.t_star} /> : <span className="faint">—</span>}</div>
-              </a>
+              </div>
             ))}
           {data && shown.length === 0 && <div className="empty">No district matches “{q}”.</div>}
         </div>

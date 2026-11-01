@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     frontend_dist: Path = REPO_ROOT / "frontend" / "dist"
     cors_origins: str = "http://localhost:5173"
     secret_key: str = ""
+    # Transport security (app/security.py). force_https=None -> on in production, off in development.
+    force_https: bool | None = None
+    trust_proxy_headers: bool = True     # read X-Forwarded-Proto from a TLS-terminating proxy
 
     # --- officer login (display name + role only; no personal data, §9.3) ---
     officer_passcode: str = ""
@@ -92,6 +95,10 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.env.lower() == "production"
+
+    @property
+    def https_enforced(self) -> bool:
+        return self.is_production if self.force_https is None else self.force_https
 
     @property
     def ensemble_model_list(self) -> list[str]:

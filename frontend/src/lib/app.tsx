@@ -2,6 +2,7 @@ import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, 
 import { api, apiUrl } from "./api";
 import { Lang, STRINGS, StringKey } from "../i18n";
 import { useLocalStorage } from "./hooks";
+import { pagePath } from "./links";
 
 export type User = { name: string; role: "officer" | "admin" };
 export type Toast = { id: number; kind: "info" | "warn" | "danger" | "ok"; title: string; body?: string; href?: string };
@@ -82,12 +83,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     es.addEventListener("notice", (m) => {
       const ev = JSON.parse((m as MessageEvent).data);
       if (ev.type === "level_change")
-        toast({ kind: ev.level === "ACT" ? "danger" : "warn", title: `${ev.district} entered ${ev.level}`, body: `${ev.hazard} trigger · ${ev.action}`, href: `/district/${ev.district_id}` });
+        pagePath("district", ev.district_id).then((href) => toast({ kind: ev.level === "ACT" ? "danger" : "warn", title: `${ev.district} entered ${ev.level}`, body: `${ev.hazard} trigger · ${ev.action}`, href }));
       else if (ev.type === "sources_disagree")
-        toast({ kind: "warn", title: `Sources disagree · ${ev.district}`, body: (ev.notes || []).slice(-1)[0], href: `/district/${ev.district_id}` });
+        pagePath("district", ev.district_id).then((href) => toast({ kind: "warn", title: `Sources disagree · ${ev.district}`, body: (ev.notes || []).slice(-1)[0], href }));
       else if (ev.type === "published") toast({ kind: "ok", title: "Alert published to the public page (exercise)", href: "/public" });
       else if (ev.type === "chaos") toast({ kind: "warn", title: `Chaos switch: ${ev.source} ${ev.enabled ? "OFF (simulated outage)" : "restored"}`, body: `by ${ev.by}` });
-      else if (ev.type === "run_finished") toast({ kind: ev.status === "completed" ? "ok" : "warn", title: `Planner run ${ev.status}`, href: `/run/${ev.run_id}` });
+      else if (ev.type === "run_finished") pagePath("run", ev.run_id).then((href) => toast({ kind: ev.status === "completed" ? "ok" : "warn", title: `Planner run ${ev.status}`, href }));
       else if (ev.type === "scan_finished") window.dispatchEvent(new CustomEvent("tminus:scan", { detail: ev }));
     });
     return () => es.close();

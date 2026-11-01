@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from "react";
-import { Link, useParams } from "react-router-dom";
+import { SecureLink, useRouteId } from "../lib/links";
 import { AlertTriangle, CircleHelp, FileCheck2, MapPinned, ShieldCheck } from "lucide-react";
 import { ActionTimeline } from "../components/ActionTimeline";
 import { AgentTrace } from "../components/AgentTrace";
@@ -16,8 +16,9 @@ const KEY_LABEL: Record<string, string> = {
 };
 
 export default function Run() {
-  const { id } = useParams();
-  const { data, error, loading, reload, setData } = useApi<any>(`/api/runs/${id}`, 0);
+  const route = useRouteId("run");
+  const id = route.id;
+  const { data, error, loading, reload, setData } = useApi<any>(id ? `/api/runs/${id}` : null, 0);
   const { events, connected, ended } = useRunTrace(id ?? null);
   const { user } = useApp();
   const readiness = useApi<any>(id ? `/api/runs/${id}/readiness` : null, 0);
@@ -39,7 +40,8 @@ export default function Run() {
     return { facilities: st.facilities || [], areas: (st.geocodes || []).filter((g: any) => g.lat != null), routes: st.routes || [] };
   }, [data?.state]);
 
-  if (loading && !data) return <div className="page"><Loading label="Loading run…" /></div>;
+  if (route.error) return <div className="page"><ErrorBox error={route.error} what="this run" /></div>;
+  if (!id || (loading && !data)) return <div className="page"><Loading label="Loading run…" /></div>;
   if (error && !data) return <div className="page"><ErrorBox error={error} what="this run" /></div>;
   if (!data) return null;
   const { run, plan, verification, district, trigger } = data;
@@ -53,7 +55,7 @@ export default function Run() {
     <div className="page">
       <div className="hero">
         <div>
-          <div className="small muted"><Link to={`/district/${run.district_id}`}>{district?.name}</Link> / planner run <span className="mono">{run.id}</span></div>
+          <div className="small muted"><SecureLink kind="district" id={run.district_id}>{district?.name}</SecureLink> / planner run <span className="mono">{run.id}</span></div>
           <h1>Action plan · {district?.name}</h1>
           <div className="small muted">started {istTime(run.started_at, true)} by {run.started_by} · model {run.model || "—"} · {run.tool_calls} tool calls · {run.attempts} plan attempt(s)</div>
         </div>
